@@ -1,1 +1,2 @@
 # SQUIG
+Squig is a vision system designed to assist squash referees in Let/Stroke decisions by tracking player and ball motion, predicting trajectories under occlusion, and applying rule-based decision logic.
