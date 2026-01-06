@@ -1,0 +1,2 @@
+/usr/bin/ar qc libeasyrtmp.a CMakeFiles/easyrtmp.dir/amf.cpp.o CMakeFiles/easyrtmp.dir/framework.cpp.o CMakeFiles/easyrtmp.dir/rtmp_endpoint.cpp.o CMakeFiles/easyrtmp.dir/rtmp_exception.cpp.o CMakeFiles/easyrtmp.dir/rtmp_proto.cpp.o CMakeFiles/easyrtmp.dir/rtmp_server_session.cpp.o CMakeFiles/easyrtmp.dir/rtmp_client_session.cpp.o CMakeFiles/easyrtmp.dir/utils.cpp.o CMakeFiles/easyrtmp.dir/data_layers/tcp_network.cpp.o
+/usr/bin/ranlib libeasyrtmp.a

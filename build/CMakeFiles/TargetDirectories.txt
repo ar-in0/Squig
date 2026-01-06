@@ -1,0 +1,14 @@
+/home/armaan/Fun-CS/Squig/build/CMakeFiles/squig.dir
+/home/armaan/Fun-CS/Squig/build/CMakeFiles/edit_cache.dir
+/home/armaan/Fun-CS/Squig/build/CMakeFiles/rebuild_cache.dir
+/home/armaan/Fun-CS/Squig/build/CMakeFiles/list_install_components.dir
+/home/armaan/Fun-CS/Squig/build/CMakeFiles/install.dir
+/home/armaan/Fun-CS/Squig/build/CMakeFiles/install/local.dir
+/home/armaan/Fun-CS/Squig/build/CMakeFiles/install/strip.dir
+/home/armaan/Fun-CS/Squig/build/_deps/easyrtmp-build/CMakeFiles/easyrtmp.dir
+/home/armaan/Fun-CS/Squig/build/_deps/easyrtmp-build/CMakeFiles/edit_cache.dir
+/home/armaan/Fun-CS/Squig/build/_deps/easyrtmp-build/CMakeFiles/rebuild_cache.dir
+/home/armaan/Fun-CS/Squig/build/_deps/easyrtmp-build/CMakeFiles/list_install_components.dir
+/home/armaan/Fun-CS/Squig/build/_deps/easyrtmp-build/CMakeFiles/install.dir
+/home/armaan/Fun-CS/Squig/build/_deps/easyrtmp-build/CMakeFiles/install/local.dir
+/home/armaan/Fun-CS/Squig/build/_deps/easyrtmp-build/CMakeFiles/install/strip.dir

@@ -50,3 +50,16 @@ uint16_t x = 0x1822;      // host-order value (may be used on a LE or BE ISA).
 // On big-endian: y == 0x1822
 uint16_t y = htons(x);   // value transformed
 ```
+
+
+#### Build
+```
+cmake -S /home/armaan/Fun-CS/Squig/submodules/EasyRTMP -B /home/armaan/Fun-CS/Squig/submodules/EasyRTMP/build
+// add -DUSE_OPENSSL ON to enable openssl
+// build as .ar is better, small size, good for embedded to (in case I build custom clients)
+
+cmake --build /home/armaan/Fun-CS/Squig/submodules/EasyRTMP/build
+
+doxygen Doxyfile : generates index.html for docs, open in browser.
+
+```
