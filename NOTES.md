@@ -18,6 +18,9 @@ See also: OBS Studio, OBS Camera for IOS (both open source)
 ![Packet capture from Larix to Squig Server](image.png)
 - The unknowns have got to be video data. 
 - There are some chunk IDs. See rtmp intro for meaning.
+- Larix client strips the rtmp connection URL to the IP and port of the server
+(which are set manually), and very likely does a simple TCP connect() to server IP:port, 
+followed by the rtmp handshake with server
 
 
 #### Misc
