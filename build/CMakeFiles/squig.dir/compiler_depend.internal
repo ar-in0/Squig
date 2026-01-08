@@ -12,6 +12,7 @@ CMakeFiles/squig.dir/src/main.cpp.o
  /home/armaan/Fun-CS/Squig/build/_deps/easyrtmp-src/include/rtmp_enums.h
  /home/armaan/Fun-CS/Squig/build/_deps/easyrtmp-src/include/rtmp_proto.h
  /home/armaan/Fun-CS/Squig/build/_deps/easyrtmp-src/include/rtmp_server_session.h
+ /home/armaan/Fun-CS/Squig/include/squig/rtmp_server.h
  /usr/include/alloca.h
  /usr/include/asm-generic/errno-base.h
  /usr/include/asm-generic/errno.h

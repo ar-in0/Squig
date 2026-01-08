@@ -6,14 +6,18 @@ https://www.gumlet.com/learn/rtsp-vs-rtmp/
 
 RTMP spec (IMP): https://rtmp.veriskope.com/docs/spec/  
 
+rtmp intro: https://rtmp.veriskope.com/docs/overview/ 
+
+
 #### Notes
 0. Stream from Iphone 13 to laptop running Linux 6.8  
 -- Larix on Iphone to broadcast. (rtmp client)
 -- Custom processing on laptop. (rtmp server)
 See also: OBS Studio, OBS Camera for IOS (both open source)
 
-
-
+![Packet capture from Larix to Squig Server](image.png)
+- The unknowns have got to be video data. 
+- There are some chunk IDs. See rtmp intro for meaning.
 
 
 #### Misc

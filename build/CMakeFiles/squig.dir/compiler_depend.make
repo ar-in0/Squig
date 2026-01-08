@@ -11,6 +11,7 @@ CMakeFiles/squig.dir/src/main.cpp.o: /home/armaan/Fun-CS/Squig/src/main.cpp \
   _deps/easyrtmp-src/include/rtmp_enums.h \
   _deps/easyrtmp-src/include/rtmp_proto.h \
   _deps/easyrtmp-src/include/rtmp_server_session.h \
+  /home/armaan/Fun-CS/Squig/include/squig/rtmp_server.h \
   /usr/include/alloca.h \
   /usr/include/asm-generic/errno-base.h \
   /usr/include/asm-generic/errno.h \
@@ -397,6 +398,8 @@ CMakeFiles/squig.dir/src/main.cpp.o: /home/armaan/Fun-CS/Squig/src/main.cpp \
 
 /usr/include/c++/13/list:
 
+/usr/include/c++/13/istream:
+
 /usr/include/c++/13/bits/node_handle.h:
 
 /usr/include/c++/13/ios:
@@ -412,8 +415,6 @@ CMakeFiles/squig.dir/src/main.cpp.o: /home/armaan/Fun-CS/Squig/src/main.cpp \
 /usr/include/c++/13/bits/invoke.h:
 
 /usr/include/c++/13/bits/locale_classes.h:
-
-/usr/include/c++/13/bits/ostream.tcc:
 
 /usr/include/x86_64-linux-gnu/c++/13/bits/c++config.h:
 
@@ -466,6 +467,8 @@ CMakeFiles/squig.dir/src/main.cpp.o: /home/armaan/Fun-CS/Squig/src/main.cpp \
 /usr/include/c++/13/cwctype:
 
 /usr/include/c++/13/cwchar:
+
+/home/armaan/Fun-CS/Squig/include/squig/rtmp_server.h:
 
 /usr/include/x86_64-linux-gnu/bits/endianness.h:
 
@@ -588,6 +591,8 @@ _deps/easyrtmp-src/include/framework.h:
 /usr/include/c++/13/ext/alloc_traits.h:
 
 /usr/include/c++/13/backward/binders.h:
+
+/usr/include/c++/13/bits/ostream.tcc:
 
 _deps/easyrtmp-src/include/amf.h:
 
@@ -736,5 +741,3 @@ _deps/easyrtmp-src/include/data_layers/tcp_network.h:
 /usr/include/c++/13/functional:
 
 /usr/include/c++/13/initializer_list:
-
-/usr/include/c++/13/istream:
