@@ -58,7 +58,6 @@ uint16_t x = 0x1822;      // host-order value (may be used on a LE or BE ISA).
 uint16_t y = htons(x);   // value transformed
 ```
 
-
 #### Build
 ```
 cmake -S /home/armaan/Fun-CS/Squig/submodules/EasyRTMP -B /home/armaan/Fun-CS/Squig/submodules/EasyRTMP/build
@@ -68,5 +67,35 @@ cmake -S /home/armaan/Fun-CS/Squig/submodules/EasyRTMP -B /home/armaan/Fun-CS/Sq
 cmake --build /home/armaan/Fun-CS/Squig/submodules/EasyRTMP/build
 
 doxygen Doxyfile : generates index.html for docs, open in browser.
-
 ```
+
+@9 jan
+https://doc.qt.io/qt-6/qvideoframe.html
+Build a base gui to render the received video frames.
+
+https://en.wikipedia.org/wiki/Real-Time_Messaging_Protocol
+- Single view playback
+
+Larix android video codec: AVC (H.264)
+Larix IOS video codec: also AVC (H.264)
+
+Q. Does EasyRTMP recreate frames? Answer NO.
+RTMP messages contain encoded frames, need to decode.
+- Does every RTMP message carry a single encoded frame in its payload? Likely NO.  
+Actually, it seems like yes. A `VideoPacket` is an encoded frame. See rtmp_proto.h
+Need to send videopackets to avc_decode.
+
+Identifying Frames: https://stackoverflow.com/questions/3493742/problem-to-decode-h264-video-over-rtp-with-ffmpeg-libavcodec
+
+https://stackoverflow.com/questions/58469017/libavcodec-initialization-to-achieve-real-time-playback-with-frame-dropping-when
+
+https://github.com/leandromoreira/ffmpeg-libav-tutorial
+
+https://archive.is/OrGfg : libavcodec audio decoding
+
+https://www.ffmpeg.org/doxygen/trunk/group__lavc__decoding.html#ga58bc4bf1e0ac59e27362597e467efff3
+
+Pipeline: Larix (RTMP packet) -> libav (decode AVC to get frames) -> ??QTMultimedia for playing frames?? 
+
+https://stackoverflow.com/questions/6756770/libavcodec-how-to-tell-end-of-access-unit-when-decoding-h-264-stream
+![alt text](extracting-NALU.png)
