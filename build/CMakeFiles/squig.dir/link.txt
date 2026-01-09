@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/squig.dir/src/main.cpp.o -o squig  _deps/easyrtmp-build/libeasyrtmp.a 

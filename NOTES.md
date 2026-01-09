@@ -84,6 +84,7 @@ RTMP messages contain encoded frames, need to decode.
 - Does every RTMP message carry a single encoded frame in its payload? Likely NO.  
 Actually, it seems like yes. A `VideoPacket` is an encoded frame. See rtmp_proto.h
 Need to send videopackets to avc_decode.
+- Actually, not quite. The videopacket data may contain several NAL units, i
 
 Identifying Frames: https://stackoverflow.com/questions/3493742/problem-to-decode-h264-video-over-rtp-with-ffmpeg-libavcodec
 
