@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.20) # easyRTMP compatibility
 project(Squig)
 
 # only works with Cmake-based libs
+# --
+# @Jan13: Making changes to the easyRTMP lib. 
+# Probably better to work with a fork of the original?
 include(FetchContent)
 FetchContent_Declare(
   easyrtmp
@@ -25,7 +28,7 @@ target_sources(squig
 
 target_include_directories(squig
     PRIVATE
-        ${easyrtmp_SOURCE_DIR}/include
+        deps/easyrtmp/include
 )
 
 target_include_directories(squig
