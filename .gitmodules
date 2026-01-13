@@ -1,3 +1,4 @@
 [submodule "deps/easyrtmp"]
 	path = deps/easyrtmp
 	url = https://github.com/ar-in0/EasyRTMP
+	branch = main
