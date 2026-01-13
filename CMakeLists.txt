@@ -5,19 +5,21 @@ project(Squig)
 # only works with Cmake-based libs
 # --
 # @Jan13: Making changes to the easyRTMP lib. 
-# Probably better to work with a fork of the original?
-include(FetchContent)
-FetchContent_Declare(
-  easyrtmp
-  GIT_REPOSITORY https://github.com/AlexanderBabansky/EasyRTMP.git
-  GIT_TAG        7acf54cc7cc97f1bd71707b28d399ea8225903a6 # with conan support. Cached, so delete build folder if changing
-)
+# # Probably better to work with a fork of the original?
+# include(FetchContent)
+# FetchContent_Declare(
+#   easyrtmp
+#   GIT_REPOSITORY https://github.com/AlexanderBabansky/EasyRTMP.git
+#   GIT_TAG        7acf54cc7cc97f1bd71707b28d399ea8225903a6 # with conan support. Cached, so delete build folder if changing
+# )
 
-# Defines
-# easyrtmp_SOURCE_DIR: where source was downloaded (_deps/..-src)
-# easyrtmp_BINARY_DIR: where source is built (_deps/..-build)
-FetchContent_MakeAvailable(easyrtmp)
-message(STATUS "easyrtmp source dir: ${easyrtmp_SOURCE_DIR}")
+# # Defines
+# # easyrtmp_SOURCE_DIR: where source was downloaded (_deps/..-src)
+# # easyrtmp_BINARY_DIR: where source is built (_deps/..-build)
+# FetchContent_MakeAvailable(easyrtmp)
+# message(STATUS "easyrtmp source dir: ${easyrtmp_SOURCE_DIR}")
+
+add_subdirectory(deps/easyrtmp)
 
 add_executable(squig)
 
