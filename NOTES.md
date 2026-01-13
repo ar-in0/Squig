@@ -15,7 +15,7 @@ rtmp intro: https://rtmp.veriskope.com/docs/overview/
 -- Custom processing on laptop. (rtmp server)
 See also: OBS Studio, OBS Camera for IOS (both open source)
 
-![Packet capture from Larix to Squig Server](image.png)
+![Packet capture from Larix to Squig Server](assets/image.png)
 - The unknowns have got to be video data. 
 - There are some chunk IDs. See rtmp intro for meaning.
 - Larix client strips the rtmp connection URL to the IP and port of the server
@@ -99,4 +99,11 @@ https://www.ffmpeg.org/doxygen/trunk/group__lavc__decoding.html#ga58bc4bf1e0ac59
 Pipeline: Larix (RTMP packet) -> libav (decode AVC to get frames) -> ??QTMultimedia for playing frames?? 
 
 https://stackoverflow.com/questions/6756770/libavcodec-how-to-tell-end-of-access-unit-when-decoding-h-264-stream
-![alt text](extracting-NALU.png)
+![alt text](assets/extracting-NALU.png)
+
+
+#### Github Stuff
+Submodules workflow:
+- Commit in submodule directory, then push
+- git add deps/<name>
+- Commit in root directory, then push
