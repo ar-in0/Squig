@@ -2,22 +2,11 @@ cmake_minimum_required(VERSION 3.20) # easyRTMP compatibility
 
 project(Squig)
 
-# only works with Cmake-based libs
-# --
-# @Jan13: Making changes to the easyRTMP lib. 
-# # Probably better to work with a fork of the original?
-# include(FetchContent)
-# FetchContent_Declare(
-#   easyrtmp
-#   GIT_REPOSITORY https://github.com/AlexanderBabansky/EasyRTMP.git
-#   GIT_TAG        7acf54cc7cc97f1bd71707b28d399ea8225903a6 # with conan support. Cached, so delete build folder if changing
-# )
-
-# # Defines
-# # easyrtmp_SOURCE_DIR: where source was downloaded (_deps/..-src)
-# # easyrtmp_BINARY_DIR: where source is built (_deps/..-build)
-# FetchContent_MakeAvailable(easyrtmp)
-# message(STATUS "easyrtmp source dir: ${easyrtmp_SOURCE_DIR}")
+# ffmpeg libs do note have a .cmake, so we need 
+# pkgconfig to find them
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(AVCODEC REQUIRED libavcodec)
+pkg_check_modules(AVUTIL REQUIRED libavutil)
 
 add_subdirectory(deps/easyrtmp)
 
@@ -28,14 +17,20 @@ target_sources(squig
     src/main.cpp
 )
 
+# easyrtmp cmake has PUBLIC on its include
+# directory, so any target linking with it
+# will have default access to it.
 target_include_directories(squig
     PRIVATE
-        deps/easyrtmp/include
+        # deps/easyrtmp/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/include # for rtmp_server.h
+        ${AVCODEC_INCLUDE_DIRS}
+        ${AVUTIL_INCLUDE_DIRS}
 )
 
-target_include_directories(squig
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-target_link_libraries(squig PRIVATE easyrtmp) # lib name: from the library CMakeLists
+target_link_libraries(squig
+    PRIVATE
+        easyrtmp
+        ${AVCODEC_LIBRARIES}
+        ${AVUTIL_LIBRARIES}
+) # lib name: from the library CMakeLists

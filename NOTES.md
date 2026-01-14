@@ -102,8 +102,24 @@ https://stackoverflow.com/questions/6756770/libavcodec-how-to-tell-end-of-access
 ![alt text](assets/extracting-NALU.png)
 
 
+How many NALU units in a frame?
+https://stackoverflow.com/questions/28559529/how-to-know-the-number-of-nal-unit-in-h-264-stream-which-represent-a-picture
+
+@14 Jan
+Investigate: 
+- In a 96 RTMP message capture, 140ish packets are sent to the interface.  
+- Addtionally, the rtmp packets have different chunk stream ids in wireshark  
+- How is wireshark timestamps calculated?
+- In pause mode, packets are still being sent by larix. Timestamps are also incremented normally,
+by ~33 units each RTMP message...
+
+
 #### Github Stuff
 Submodules workflow:
 - Commit in submodule directory, then push
 - git add deps/<name>
 - Commit in root directory, then push
+
+
+384 messages ~ 486-533 packets
+96 messages ~
