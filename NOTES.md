@@ -123,3 +123,24 @@ Submodules workflow:
 
 384 messages ~ 486-533 packets
 96 messages ~
+
+@15Jan
+https://stackoverflow.com/questions/19191717/how-to-continuously-extract-video-frames-from-streaming-rtmp-using-avconv-ffmp
+- Go through the ffmpeg source code. Apparently `ffmpeg -i <URL> -r 1 out%03d.jpg` generates jpg every second from RTMP stream.
+- Need to create a VideoData object somehow.
+FFMPeg API tutorial: http://www.dranger.com/ffmpeg/tutorial01.html
+
+Extracting frames from an RTMP stream:  
+There seem to be 3 methods,  
+- [Ref](https://stackoverflow.com/questions/30096327/opencv-wont-capture-frames-from-a-rtmp-source-while-ffmpeg-does?rq=3) OpenCV can extract frames from an RTMP source url (uses ffmpeg). Is this URL of the Larix client on iOS or of my server on machine?
+- FFMpeg CLI can generate .jpg every unit time given an rtmp URL. Again, which URL is this? I suspect server URL, but how would ffmpeg get the frames?
+- The third method is using the base ffmpeg libraries in Squig for live frame extraction rather than depending on OpenCV.
+
+Strategy: For any problem, before re-inventing any existing functionality, you must be able to demostrate 
+that standard solutions are inadequate. In other words:  
+Problem: Extracting frames from a live RTMP stream  
+S0: Larix Client -> Nginx-rtmp -> VLC [ref1](https://github.com/aileone/nginx-rtmp-module/issues/1), [ref2](https://obsproject.com/forum/resources/how-to-set-up-your-own-private-rtmp-server-using-nginx.50/#:~:text=Restart%20nginx%20with:,web%20site%20you%20set%20up.)
+- This is alright for playback/rtmp demo, but its difficult to integrate OpenCV/vision algorithms into nginx server...
+S1: Using ffmpeg command line (Just to demonstrate, obviously not suited to realtime processing.)  
+S2: Using OpenCV libraries (Might be viable)  
+S3: Using libav* libraries directly in Squig (If OpenCV inadequate)  
