@@ -15,7 +15,7 @@ rtmp intro: https://rtmp.veriskope.com/docs/overview/
 -- Custom processing on laptop. (rtmp server)
 See also: OBS Studio, OBS Camera for IOS (both open source)
 
-![Packet capture from Larix to Squig Server](assets/image.png)
+![Packet capture from Larix to Squig Server](assets/rtmp-stream-dump.png)
 - The unknowns have got to be video data. 
 - There are some chunk IDs. See rtmp intro for meaning.
 - Larix client strips the rtmp connection URL to the IP and port of the server
