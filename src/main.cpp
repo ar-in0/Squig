@@ -56,7 +56,7 @@ int main() {
         while(true){
            //receive media message
            auto message = server_session.GetRTMPMessage();
-         //   std::cout << "Got RTMP Message:\n";
+           std::cout << "Got RTMP Message:\n";
 
            //auto message.video.video_data_send; // video payload corresp to 1 frame?
            //get received media codec parameters and streaming key
@@ -84,4 +84,4 @@ int main() {
         //connection terminated by peer or network conditions
         std::cout << "Connection Terminated\n";
      }
-}   
+}

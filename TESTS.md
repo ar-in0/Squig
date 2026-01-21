@@ -29,7 +29,11 @@ Observations:
 - ~4s delay between world action capture by larix client and display on machine. (is this client-side buffering or server-side or pure link-layer delay?)
 - 
 
-
+@21Jan
 S1: Using ffmpeg command line (Just to demonstrate, obviously not suited to realtime processing.)  
+`ffmpeg -i rtmp://10.42.0.1/live/stream -r 1 out%03d.jpg`: Tested, output frames generated successfully and written to files.   
+Video: assets/fmpeg-frame-extract.webm
+
+
 S2: Using OpenCV libraries (Might be viable)  
 S3: Using libav* libraries directly in Squig (If OpenCV inadequate)  

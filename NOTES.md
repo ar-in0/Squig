@@ -110,8 +110,7 @@ Investigate:
 - In a 96 RTMP message capture, 140ish packets are sent to the interface.  
 - Addtionally, the rtmp packets have different chunk stream ids in wireshark  
 - How is wireshark timestamps calculated?
-- In pause mode, packets are still being sent by larix. Timestamps are also incremented normally,
-by ~33 units each RTMP message...
+- In pause mode, packets are still being sent by larix. Timestamps are also incremented normally, by ~33 units each RTMP message...
 
 
 #### Github Stuff
@@ -143,4 +142,17 @@ S0: Larix Client -> Nginx-rtmp -> VLC [ref1](https://github.com/aileone/nginx-rt
 - This is alright for playback/rtmp demo, but its difficult to integrate OpenCV/vision algorithms into nginx server...
 S1: Using ffmpeg command line (Just to demonstrate, obviously not suited to realtime processing.)  
 S2: Using OpenCV libraries (Might be viable)  
-S3: Using libav* libraries directly in Squig (If OpenCV inadequate)  
+S3: Using libav* libraries directly in Squig (If OpenCV inadequate) 
+
+@21 Jan
+Observed 5ish second delay between motion capture on ios camera and playback on 
+laptop in the larix->nginx->vlc pipeline. 
+TASK: Characterize the delays. This is important to generate a baseline for future
+latency comparisons
+
+Expt: larix keyframe frequency: 
+Default 2s, tried 1s, no effect on trmp message rec timestamps and # of messages. 
+
+
+H.264 keyframe interval, iframe, etc...  
+https://streaminglearningcenter.com/codecs/beginners-guide-to-encoding-h264.html
