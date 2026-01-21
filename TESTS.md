@@ -31,8 +31,10 @@ Observations:
 
 @21Jan
 S1: Using ffmpeg command line (Just to demonstrate, obviously not suited to realtime processing.)  
+With an nginx server, passed incoming rtmp to ffmpeg command line for decode and write to jpeg.
 `ffmpeg -i rtmp://10.42.0.1/live/stream -r 1 out%03d.jpg`: Tested, output frames generated successfully and written to files.   
-Video: assets/fmpeg-frame-extract.webm
+Video: assets/fmpeg-frame-extract.webm  
+TODO: Pass rtmp to ffmpeg using squig server  
 
 
 S2: Using OpenCV libraries (Might be viable)  
