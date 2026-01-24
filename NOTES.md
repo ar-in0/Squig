@@ -1,18 +1,4 @@
-Github: https://github.com/ar-in0/Squig
-
-#### Resources
-https://www.videosdk.live/blog/webrtc-vs-rtmp  
-https://www.gumlet.com/learn/rtsp-vs-rtmp/  
-
-RTMP spec (IMP): https://rtmp.veriskope.com/docs/spec/  
-
-rtmp intro: https://rtmp.veriskope.com/docs/overview/ 
-
-
-#### Notes
-0. Stream from Iphone 13 to laptop running Linux 6.8  
--- Larix on Iphone to broadcast. (rtmp client)
--- Custom processing on laptop. (rtmp server)
+ocessing on laptop. (rtmp server)
 See also: OBS Studio, OBS Camera for IOS (both open source)
 
 ![Packet capture from Larix to Squig Server](assets/rtmp-stream-dump.png)
@@ -156,3 +142,23 @@ Default 2s, tried 1s, no effect on trmp message rec timestamps and # of messages
 
 H.264 keyframe interval, iframe, etc...  
 https://streaminglearningcenter.com/codecs/beginners-guide-to-encoding-h264.html
+
+
+@23Jan
+TODO: Display a video frame. To test, send data using an RTMP client.
+    // Read input media file 
+    // (for a true client this is camera stream)
+    // cant ffmpeg just do this? 
+    // it can.
+
+SOLUTION: Just use ffmpeg command line to stream rtmp.
+
+
+@24Jan
+Opencv Wiki: https://github.com/opencv/opencv/wiki/FAQ
+Opencv Full Docs: https://docs.opencv.org/4.x/index.html
+- Pass cv::Mat objects to functions. Each video frame must
+be converted to a cv::Mat. Internally these are converted to InputArray 
+and OutputArray
+
+![alt text](assets/opencv-mat-from-stream.png)

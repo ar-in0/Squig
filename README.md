@@ -13,5 +13,11 @@ cmake -S . -B ./build
 cmake --build ./build
 ```
 
+Testing
+Initial server testing: Use ffmpeg on client
+```bash
+ffmpeg -re -i assets/test0_1080_30_squig_base.mp4 -c:v libx264 -c:a aac -f flv rtmp://localhost/live/stream
+```
+
 #### Dependencies:
-EasyRTMP, libav* libraries
+EasyRTMP, libav* libraries, OpenCV 4.x
