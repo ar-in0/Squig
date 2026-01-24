@@ -2,8 +2,3 @@
 	path = deps/easyrtmp
 	url = https://github.com/ar-in0/EasyRTMP
 	branch = main
-
-[submodule "deps/easyrtmp"]
-	path = deps/opencv
-	url = https://github.com/ar-in0/opencv
-	branch = main
