@@ -162,3 +162,22 @@ be converted to a cv::Mat. Internally these are converted to InputArray
 and OutputArray
 
 ![alt text](assets/opencv-mat-from-stream.png)
+
+@25jan
+From the rtmp  video_data_send hexdumps, there dont seem to be any
+NALU start codes...Gives more evidence that the video_data is pure NAL data
+- So does that mean byte 1 of the sequence would give the NALu type?
+Observed:
+- Keyframe videodata starts with 00 01, other frames (interframes) are 00 00 
+!!! These are in the AVCC (packet-based) format, NOT the byte-stream
+See: https://stackoverflow.com/questions/24884827/possible-locations-for-sequence-picture-parameter-sets-for-h-264-stream
+The first rtmp message is the AVCC (AVCDecoderCOnfigurationRecord!!!), has structure
+as in above link!!! i.e. it is the extradata header.
+
+- Subsequent messages, the videodata_send field contain 4byte length of NALU followed by NALU bytes.
+- video_data_send: bytes [0-3]: bytes in the raw video data (NALu). byte 4: (first byte of the raw data): NALU type. Here, i observe only 0x01 and 0x41, i.e. 0000 0001, 0100 0001
+- The ITU spec section 7.3.1 gives the syntax - 
+0x41	0100 0001	1 (Slice)	P-Frame (Referenced). Used to predict future frames.
+0x01	0000 0001	1 (Slice)	B-Frame (Disposable). Not used for prediction- 
+
+These NAL types are the ones corresp. to the table in SO link above.
