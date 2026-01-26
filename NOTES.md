@@ -181,3 +181,20 @@ as in above link!!! i.e. it is the extradata header.
 0x01	0000 0001	1 (Slice)	B-Frame (Disposable). Not used for prediction- 
 
 These NAL types are the ones corresp. to the table in SO link above.
+
+@26Jan
+- av_send_packet() expects a byte-stream rather than AVCC. Methods
+look for start code, but the NALUs in video_data_send are cleaned from AVCC 
+https://aviadr1.blogspot.com/2010/05/h264-extradata-partially-explained-for.html
+https://aviadr1.blogspot.com/2011/04/media-processing-pipeline.html
+
+
+video_data_send.size() is 54039 bytes, 
+but the buffer is an AVCC format, and first 4 bytes corresp to the size of nalu
+and the 5th byte corresp to the type of nalu (0x06 = SEI). Observe that 
+for rtmp message 1, payload = 54039 bytes, but nalu size = 0000 02 af = 687.
+- 06 tells that we have a 687 byte SEI nalu at the start of the first rtmp
+video_data buffer.
+- This means that there are more nalus in the remaining video_data_send
+- THIS ALSO STRONGLY SUGGESTS that each video_data_send in the rtmp message
+  is an Access Unit, i.e.  all the info needed to create a single frame.

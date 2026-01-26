@@ -15,6 +15,7 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavutil/log.h>
 }
 
 #include <deque>
@@ -22,6 +23,8 @@ namespace {
     // reference is always valid
     std::deque<librtmp::RTMPMediaMessage> rtmpFIFO {};
     int fifoIdx {};
+    AVCodecContext* context = nullptr;
+    librtmp::RTMPMediaMessage spsContainer;
 }// namespace
 
 void printHexDump(const std::vector<char>& buffer) {
@@ -69,6 +72,7 @@ void decodeMessage(const librtmp::RTMPMediaMessage& m);
 
 void initAvc(librtmp::ClientParameters* params) {
     std::cout << "AVC Version: " << avcodec_version() << std::endl;
+    av_log_set_level(AV_LOG_DEBUG);
     // client params:
     // to be passed to opencv later
     std::cout << "Client Stream Params:\n";
@@ -78,10 +82,24 @@ void initAvc(librtmp::ClientParameters* params) {
 
 
     const AVCodec* codec = avcodec_find_decoder(AV_CODEC_ID_H264);
-    AVCodecContext* context = avcodec_alloc_context3(codec);
-    // Need to add height, width info to context
+    if (!codec) {
+        fprintf(stderr, "Codec not found\n");
+        exit(1);
+    }
 
+    context = avcodec_alloc_context3(codec);
+    if (!context) {
+        fprintf(stderr, "Could not allocate video codec context\n");
+        exit(1);
+    }
 
+    auto& extraData =  spsContainer.video.video_data_send;
+    context->extradata_size = extraData.size();
+    context->extradata = (uint8_t*)av_malloc(extraData.size() + AV_INPUT_BUFFER_PADDING_SIZE);
+    memcpy(context->extradata, extraData.data(), extraData.size());
+    // Need to add height, width info to context?
+    // context->width = params->width;
+    // context->height = params->height;
 
     // http://ffmpeg.org/doxygen/trunk/structAVFormatContext.html
     if (avcodec_open2(context, codec, NULL) < 0) {
@@ -110,7 +128,65 @@ void handleVideo(const librtmp::RTMPMediaMessage& m) {
 
 // to decode NALUs into AVFrames.
 void doDecodeLibAvc(const librtmp::RTMPMediaMessage& m) {
-    // avcodec_send_packet(RTMP data): Decode NALU
+    // packet->data and packet->size need to be populated.
+    uint8_t* pNaluData = reinterpret_cast<uint8_t*>(const_cast<char*>(m.video.video_data_send.data()));
+
+    // pkt->size =  (unsigned char)pNaluData[0] << 24 | (unsigned char)pNaluData[1] << 16 | (unsigned char)pNaluData[2] << 8 | (unsigned char)pNaluData[3];
+    //std::cout << "Size of NALU packet: " << pkt->size << std::endl;
+
+
+    size_t payloadSize = m.video.video_data_send.size();
+    // Convert the AVCC buffer to standard nalu bytestream format (needed by libav)
+    size_t offset = 0;
+    while (offset + 4 <= payloadSize) {
+        // Read length of nalu
+        uint32_t naluLen = (uint32_t)pNaluData[offset] << 24 |
+            (uint32_t)pNaluData[offset + 1] << 16 |
+            (uint32_t)pNaluData[offset + 2] << 8 |
+            (uint32_t)pNaluData[offset + 3];
+
+        // replace length bytes with nalu start code.
+        pNaluData[offset]     = 0x00;
+        pNaluData[offset + 1] = 0x00;
+        pNaluData[offset + 2] = 0x00;
+        pNaluData[offset + 3] = 0x01;
+
+        // Jump to the next nalu length field
+        offset += (4 + naluLen);
+    }
+   // send_packet requires start codes but
+    // rtmp uses AVCC which is 4 byte length + raw data
+    //  replace the length with a start code.
+
+    AVPacket* pkt = av_packet_alloc();
+    pkt->size = payloadSize;
+    pkt->dts = m.timestamp;
+    pkt->pts = pkt->dts + m.video.d.composition_time;
+    pkt->data = pNaluData;
+
+    int ret;
+    ret = avcodec_send_packet(context, pkt); // Decode NAL
+    if (ret < 0) {
+        printf("error: %d\n", ret);
+        fprintf(stderr, "Error sending a packet for decoding\n");
+        exit(1);
+    }
+
+    AVFrame* frame = av_frame_alloc();
+    if (!frame) {
+        fprintf(stderr, "Could not allocate video frame\n");
+        exit(1);
+    }
+
+    ret = avcodec_receive_frame(context, frame);
+    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+        return;
+    else if (ret < 0) {
+        fprintf(stderr, "Error during decoding\n");
+        exit(1);
+    }
+    printf("Frame decoded, dims: %d (width) x%d (height)\n", frame->width, frame->height);
+    // generate cv::Mat
 
 }
 
@@ -149,7 +225,6 @@ void decodeMessage(const librtmp::RTMPMediaMessage& m) {
     // int attribute_align_arg avcodec_send_packet(AVCodecContext *avctx, const AVPacket *avpkt)
     // AVPacket *av_packet_alloc(void)
     doDecodeLibAvc(m);
-
     // https://docs.opencv.org/3.4/d3/d63/classcv_1_1Mat.html#details
     // cvDecodeFrame()
 }
@@ -189,6 +264,7 @@ int main() {
                     if (fifoIdx == 0) {
                         printf("Videodata Frame Type (Keyframe, interframe): %d\n", message.video.d.frame_type);
 
+                        spsContainer = message;
                         std::cout << std::endl;
 
                         printHexDump(message.video.video_data_send);
