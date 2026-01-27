@@ -1,11 +1,10 @@
 #include <iostream>
-#include <iomanip> // std::hex
-#include <cctype> //std::isprint
 #include <vector>
 #include "squig/rtmp_server.h"
+#include "squig/utils.hpp"
 #include <stdint.h>
-#include <opencv2/core/mat.hpp>
-
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
 // extern C is needed
 // tells the compiler to
 // not mangle symbols used in main.cpp
@@ -16,6 +15,8 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/log.h>
+#include <libswscale/swscale.h>
+#include <libavutil/imgutils.h>
 }
 
 #include <deque>
@@ -24,49 +25,12 @@ namespace {
     std::deque<librtmp::RTMPMediaMessage> rtmpFIFO {};
     int fifoIdx {};
     AVCodecContext* context = nullptr;
+    AVFrame* pFrameYUV = nullptr;
+    AVFrame* pFrameBGR = nullptr;
     librtmp::RTMPMediaMessage spsContainer;
 }// namespace
 
-void printHexDump(const std::vector<char>& buffer) {
-    std::ios::fmtflags original_flags = std::cout.flags();
-    char original_fill = std::cout.fill();
 
-    const size_t bytesPerLine = 16;
-    size_t length = buffer.size();
-
-    for (size_t i = 0; i < length; i += bytesPerLine) {
-
-        // 1. Print the Offset (e.g., 00000000)
-        std::cout << std::hex << std::setw(8) << std::setfill('0') << i << ": ";
-
-        // 2. Print the Hex Bytes
-        for (size_t j = 0; j < bytesPerLine; ++j) {
-            if (i + j < length) {
-                // Cast to unsigned char first to avoid sign extension (e.g., ffffff80)
-                // Then cast to int so streams treat it as a number, not a char
-                unsigned char byte = static_cast<unsigned char>(buffer[i + j]);
-                std::cout << std::setw(2) << std::setfill('0') << static_cast<int>(byte) << " ";
-            } else {
-                // Padding for the last line to align the ASCII column
-                std::cout << "   ";
-            }
-        }
-
-        std::cout << " |";
-
-        // 3. Print the ASCII Representation
-        for (size_t j = 0; j < bytesPerLine; ++j) {
-            if (i + j < length) {
-                char c = buffer[i + j];
-                // Check if character is printable; otherwise replace with '.'
-                std::cout << (std::isprint(static_cast<unsigned char>(c)) ? c : '.');
-            }
-        }
-        std::cout << "|" << std::endl;
-    }
-    std::cout.flags(original_flags);
-    std::cout.fill(original_fill);
-}
 
 void decodeMessage(const librtmp::RTMPMediaMessage& m);
 
@@ -110,7 +74,17 @@ void initAvc(librtmp::ClientParameters* params) {
     // avcontext must have a codec registered in avctx -> codec
     // avcodec_open2(avcontext, avcodec, NULL)
     // open populates the pformatcontext object
+    pFrameYUV = av_frame_alloc();
+    if (!pFrameYUV) {
+        fprintf(stderr, "Could not allocate YUV video frame\n");
+        exit(1);
+    }
 
+    pFrameBGR = av_frame_alloc();
+    if (!pFrameBGR) {
+        fprintf(stderr, "Could not allocate BGR video frame\n");
+        exit(1);
+    }
 }
 
 // RTMP->OpenCV Frames. Called on every incoming 
@@ -127,15 +101,13 @@ void handleVideo(const librtmp::RTMPMediaMessage& m) {
 }
 
 // to decode NALUs into AVFrames.
+// to decode NALUs into AVFrames.
 void doDecodeLibAvc(const librtmp::RTMPMediaMessage& m) {
     // packet->data and packet->size need to be populated.
     uint8_t* pNaluData = reinterpret_cast<uint8_t*>(const_cast<char*>(m.video.video_data_send.data()));
 
-    // pkt->size =  (unsigned char)pNaluData[0] << 24 | (unsigned char)pNaluData[1] << 16 | (unsigned char)pNaluData[2] << 8 | (unsigned char)pNaluData[3];
-    //std::cout << "Size of NALU packet: " << pkt->size << std::endl;
-
-
     size_t payloadSize = m.video.video_data_send.size();
+
     // Convert the AVCC buffer to standard nalu bytestream format (needed by libav)
     size_t offset = 0;
     while (offset + 4 <= payloadSize) {
@@ -154,11 +126,16 @@ void doDecodeLibAvc(const librtmp::RTMPMediaMessage& m) {
         // Jump to the next nalu length field
         offset += (4 + naluLen);
     }
-   // send_packet requires start codes but
+    // send_packet requires start codes but
     // rtmp uses AVCC which is 4 byte length + raw data
     //  replace the length with a start code.
 
     AVPacket* pkt = av_packet_alloc();
+    if (!pkt) {
+        fprintf(stderr, "Could not allocate packet\n");
+        return;
+    }
+
     pkt->size = payloadSize;
     pkt->dts = m.timestamp;
     pkt->pts = pkt->dts + m.video.d.composition_time;
@@ -166,31 +143,84 @@ void doDecodeLibAvc(const librtmp::RTMPMediaMessage& m) {
 
     int ret;
     ret = avcodec_send_packet(context, pkt); // Decode NAL
+
+    // Packet is sent, we can free the wrapper now
+    // (The data pointer refers to 'm', which is still valid)
+    // av_packet_free(&pkt);
+
     if (ret < 0) {
         printf("error: %d\n", ret);
         fprintf(stderr, "Error sending a packet for decoding\n");
-        exit(1);
-    }
-
-    AVFrame* frame = av_frame_alloc();
-    if (!frame) {
-        fprintf(stderr, "Could not allocate video frame\n");
-        exit(1);
-    }
-
-    ret = avcodec_receive_frame(context, frame);
-    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+        // exit(1); // Better to return than exit entire app
         return;
-    else if (ret < 0) {
+    }
+
+    ret = avcodec_receive_frame(context, pFrameYUV);
+    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+        return;
+    } else if (ret < 0) {
         fprintf(stderr, "Error during decoding\n");
         exit(1);
     }
-    printf("Frame decoded, dims: %d (width) x%d (height)\n", frame->width, frame->height);
-    // generate cv::Mat
 
+    printf("saving frame %3" PRId64 "\n", context->frame_num);
+    printf("Dims: %d (width) x%d (height)\n",pFrameYUV->width, pFrameYUV->height);
+    printf("frame->data[0]: %p, frame->linesize[0]: %d\n", (void*)pFrameYUV->data[0], pFrameYUV->linesize[0]);
+
+    // AV_PIX_FMT_YUV420P (i.e. = 0)
+    printf("SRC pixel format: %d\n", context->pix_fmt);
+
+    struct SwsContext* sws_ctx = sws_getContext(
+        context->width,
+        context->height,
+        context->pix_fmt,
+        context->width,
+        context->height,
+        AV_PIX_FMT_BGR24, // OpenCV uses BGR
+        SWS_BICUBIC,
+        NULL,
+        NULL,
+        NULL
+    );
+
+    // dest avframe data buffer
+    int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_BGR24, context->width, context->height, 1);
+    uint8_t* frame_buffer = (uint8_t*)av_malloc(num_bytes);
+
+    // Assign buffer to image planes
+    av_image_fill_arrays(
+        pFrameBGR->data,
+        pFrameBGR->linesize,
+        frame_buffer,
+        AV_PIX_FMT_BGR24,
+        context->width,
+        context->height,
+        1
+    );
+
+    pFrameBGR->width = context->width;
+    pFrameBGR->height = context->height;
+
+    // convert pixfmt
+    sws_scale(
+        sws_ctx,
+        (const uint8_t* const*)pFrameYUV->data,
+        pFrameYUV->linesize,
+        0,
+        context->height,
+        pFrameBGR->data,
+        pFrameBGR->linesize
+    );
+
+    // frameBGR: converted BGR frame, frame: YUV src
+    cv::Mat img(pFrameBGR->height, pFrameBGR->width, CV_8UC3, pFrameBGR->data[0], pFrameBGR->linesize[0]);
+
+    cv::imshow("img", img);
+    cv::waitKey(1); // 1ms delay to allow OpenCV to draw
+    // while(1) {};
+    // av_free(frame_buffer);
 }
 
-// First pass, play video on screen
 void decodeMessage(const librtmp::RTMPMediaMessage& m) {
     // From assts/extracting-NALU.png:
     // NALUs of the same frame have the same timestamp
@@ -211,7 +241,7 @@ void decodeMessage(const librtmp::RTMPMediaMessage& m) {
     std::cout << "Size of video payload: " << m.video.video_data_send.size() << std::endl;
     std::cout << std::endl;
 
-    printHexDump(m.video.video_data_send);
+    // utils::printHexDump(m.video.video_data_send);
 
     std::cout << std::endl;
     // RTMPMediaMessage -> AVPacket -> <avc_decode> -> AVFrame (uncompressed)
@@ -262,32 +292,21 @@ int main() {
 
                     // Initialize the decoder with first header
                     if (fifoIdx == 0) {
-                        printf("Videodata Frame Type (Keyframe, interframe): %d\n", message.video.d.frame_type);
-
+                        // Client always sends SPS, PPS in first rtmp message
+                        // AVCC format.
                         spsContainer = message;
                         std::cout << std::endl;
-
-                        printHexDump(message.video.video_data_send);
-
+                        // utils::printHexDump(message.video.video_data_send);
                         std::cout << std::endl;
 
                         initAvc(params);
                         fifoIdx++;
-
                         continue;
-
                     }
 
                     // Process rtmp message containing NALU
                     handleVideo(message);
                     fifoIdx++;
-                    // Larix on ios streams at 30fps
-                    // this is just exploratory
-                    // if (rtmpFIFO.size() == 384) {
-                    //    std::cout << "Got 384 RTMP Video messages, attempt to decode\n";
-                    //    decodeRTMP(rtmpFIFO);
-                    //    return 0;
-                    // }
                     break;
                 case librtmp::RTMPMessageType::AUDIO:
                     // std::cout << "[" << message.timestamp << "]" << "Audio Message\n";
@@ -298,5 +317,9 @@ int main() {
         //connection terminated by peer or network conditions
         std::cout << "Connection Terminated\n";
         // decodeRTMP(rtmpFIFO);
+        av_frame_free(&pFrameYUV);
+
+        av_frame_free(&pFrameBGR);
+        // sws_freeContext(sws_ctx);
     }
 }

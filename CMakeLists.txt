@@ -13,7 +13,7 @@ find_package( OpenCV REQUIRED )
 add_executable(squig)
 target_sources(squig
   PRIVATE
-    src/main.cpp
+  src/main.cpp
 )
 
 # easyrtmp cmake has PUBLIC on its include
@@ -21,17 +21,18 @@ target_sources(squig
 # will have default access to it.
 add_subdirectory(deps/easyrtmp)
 target_include_directories(squig
-    PRIVATE
-        # deps/easyrtmp/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/include # for rtmp_server.h
-        ${AVCODEC_INCLUDE_DIRS}
-        ${AVUTIL_INCLUDE_DIRS}
+  PRIVATE
+  # deps/easyrtmp/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/include # for rtmp_server.h
+  ${AVCODEC_INCLUDE_DIRS}
+  ${AVUTIL_INCLUDE_DIRS}
 )
 
 target_link_libraries(squig
-    PRIVATE
-        easyrtmp
-        ${OpenCV_LIBS}
-        ${AVCODEC_LIBRARIES}
-        ${AVUTIL_LIBRARIES}
-) # lib name: from the library CMakeLists
+  PRIVATE
+  easyrtmp
+  swscale
+  ${OpenCV_LIBS}
+  ${AVCODEC_LIBRARIES}
+  ${AVUTIL_LIBRARIES}
+  ) # lib name: from the library CMakeLists

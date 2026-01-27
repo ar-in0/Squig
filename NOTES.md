@@ -157,7 +157,7 @@ SOLUTION: Just use ffmpeg command line to stream rtmp.
 @24Jan
 Opencv Wiki: https://github.com/opencv/opencv/wiki/FAQ
 Opencv Full Docs: https://docs.opencv.org/4.x/index.html
-- Pass cv::Mat objects to functions. Each video frame must
+- [ ] Pass cv::Mat objects to functions. Each video frame must
 be converted to a cv::Mat. Internally these are converted to InputArray 
 and OutputArray
 
@@ -198,3 +198,32 @@ video_data buffer.
 - This means that there are more nalus in the remaining video_data_send
 - THIS ALSO STRONGLY SUGGESTS that each video_data_send in the rtmp message
   is an Access Unit, i.e.  all the info needed to create a single frame.
+> it seems like i would have to (for the entire video_data_send)  jump the bytes = size of prev NALU make the 4 subsequent bytes a nalu start code (while recording the size of this nalu) and iterate until I have written start codes for each nalu... (replacing the lengths)
+
+@27 Jan
+https://stackoverflow.com/questions/49449411/how-to-use-av-frame-unref-in-ffmpeg
+gdb catch throw to set breakpoint on thrown exception
+https://github.com/leandromoreira/digital_video_introduction
+
+Digital Colour models: 
+- RGB (red,green,blue) - 3 planes for each 2D pixel frame. Each pixel is rep by a 24 bit value,
+8 bits for each of RGB. 
+- YUV/YCbCr (Luma (luminance) - brightness, chroma (chrominance) - colours blue, red). Used
+to reduce space requirements for storing colour images, and also mainitnang pereviced quality
+using a quirk of the huan eye.
+
+
+In analog transmission
+Every video frame is divided into ~500 horizontal "lines", each line
+spans the width of the frame.
+- Every line has an associated luma signal - a contious curve repping the "brightness"
+of the region as we move in the horizontal direction. Y-axis of luma curve: Black to white, 
+mids are grey. For BW TV, pure LUMA transmission was suffcient.
+- LUMA = weighted sum of the rgb values of a colour, i.e. a value for brightness,
+with green weighted higher than red and blue due to human eye sensitivy
+- For colour TV, the colour signal is called "Chroma"
+Luma + Chroma -> Colour Video
+https://learnopencv.com/why-does-opencv-use-bgr-color-format/
+
+av_pix_fmt_descriptors[AV_PIX_FMT_NB] 
+also see pixfmt.h
