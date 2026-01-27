@@ -10,11 +10,8 @@ cmake --build ./build
 
 # Run Server
 ./build/squig
-```
 
-Testing:  
-Initial server tests: Use ffmpeg on client
-```bash
+# Test with RTMP client streaming over localhost
 ffmpeg -re -i assets/test0_1080_30_squig_base.mp4 -c:v libx264 -c:a aac -f flv rtmp://localhost/live/stream
 ```
 

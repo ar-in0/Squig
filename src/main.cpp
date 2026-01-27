@@ -28,6 +28,7 @@ namespace {
     AVFrame* pFrameYUV = nullptr;
     AVFrame* pFrameBGR = nullptr;
     librtmp::RTMPMediaMessage spsContainer;
+    struct SwsContext* sws_ctx = nullptr;
 }// namespace
 
 
@@ -64,7 +65,9 @@ void initAvc(librtmp::ClientParameters* params) {
     // Need to add height, width info to context?
     // context->width = params->width;
     // context->height = params->height;
-
+    context->pix_fmt = AV_PIX_FMT_YUV420P;
+    context->width = params->width;
+    context->height = params->height;
     // http://ffmpeg.org/doxygen/trunk/structAVFormatContext.html
     if (avcodec_open2(context, codec, NULL) < 0) {
     std::cout << "Failed to open avcontext and register codec info\n";
@@ -85,6 +88,32 @@ void initAvc(librtmp::ClientParameters* params) {
         fprintf(stderr, "Could not allocate BGR video frame\n");
         exit(1);
     }
+    // AV_PIX_FMT_YUV420P (i.e. = 0)
+    printf("SRC pixel format: %d\n", context->pix_fmt);
+
+    // get_buffer() needs frame->pixfmt, height, width to be set.
+    // allocates heap memory for the decoded data
+    // that (will eventually) be filled into
+    // this AVFRame by sws_scale
+    pFrameBGR->format = AV_PIX_FMT_BGR24;
+    pFrameBGR->width = context->width;
+    pFrameBGR->height = context->height;
+   // allocate a buffer only once,
+   // reuse for subsequent scaled frames
+    int ret;
+    ret = av_frame_get_buffer(pFrameBGR, 0);
+    sws_ctx = sws_getContext(
+        context->width,
+        context->height,
+        context->pix_fmt,
+        context->width,
+        context->height,
+        AV_PIX_FMT_BGR24, // OpenCV uses BGR
+        SWS_BICUBIC,
+        NULL,
+        NULL,
+        NULL
+    );
 }
 
 // RTMP->OpenCV Frames. Called on every incoming 
@@ -146,7 +175,7 @@ void doDecodeLibAvc(const librtmp::RTMPMediaMessage& m) {
 
     // Packet is sent, we can free the wrapper now
     // (The data pointer refers to 'm', which is still valid)
-    // av_packet_free(&pkt);
+    av_packet_free(&pkt);
 
     if (ret < 0) {
         printf("error: %d\n", ret);
@@ -155,6 +184,8 @@ void doDecodeLibAvc(const librtmp::RTMPMediaMessage& m) {
         return;
     }
 
+    // receive_frame will allocate data buffer
+    // in frameYUV to store decoded NALUs.
     ret = avcodec_receive_frame(context, pFrameYUV);
     if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
         return;
@@ -167,47 +198,29 @@ void doDecodeLibAvc(const librtmp::RTMPMediaMessage& m) {
     printf("Dims: %d (width) x%d (height)\n",pFrameYUV->width, pFrameYUV->height);
     printf("frame->data[0]: %p, frame->linesize[0]: %d\n", (void*)pFrameYUV->data[0], pFrameYUV->linesize[0]);
 
-    // AV_PIX_FMT_YUV420P (i.e. = 0)
-    printf("SRC pixel format: %d\n", context->pix_fmt);
+    // release any data previouslywritten to the
+    // undo any previous get_buffer().
+    // av_frame_unref(pFrameBGR);
 
-    struct SwsContext* sws_ctx = sws_getContext(
-        context->width,
-        context->height,
-        context->pix_fmt,
-        context->width,
-        context->height,
-        AV_PIX_FMT_BGR24, // OpenCV uses BGR
-        SWS_BICUBIC,
-        NULL,
-        NULL,
-        NULL
-    );
+    // To avoid alloc/free buffer on each rtmp packet decode,
+    // reuse the original buffer, i.e. let
+    // sws_scale overwrite a previously filled buffer.
+    // Possible future issue: If resolution of
+    // incoming stream changes in a session,
+    // there could be trouble. (cv::mat reads part-old data)
+    // --
+    // In such a case, can add a check here to verify no change
+    // in codec context, but rn the main loop logic itself only
+    // allows a single resolution per session.
+    // (fifoIdx=0 is used to get the SPS, and initAvc()).
 
-    // dest avframe data buffer
-    int num_bytes = av_image_get_buffer_size(AV_PIX_FMT_BGR24, context->width, context->height, 1);
-    uint8_t* frame_buffer = (uint8_t*)av_malloc(num_bytes);
-
-    // Assign buffer to image planes
-    av_image_fill_arrays(
-        pFrameBGR->data,
-        pFrameBGR->linesize,
-        frame_buffer,
-        AV_PIX_FMT_BGR24,
-        context->width,
-        context->height,
-        1
-    );
-
-    pFrameBGR->width = context->width;
-    pFrameBGR->height = context->height;
-
-    // convert pixfmt
+    // write to pFrameBGR data buffer
     sws_scale(
         sws_ctx,
         (const uint8_t* const*)pFrameYUV->data,
         pFrameYUV->linesize,
         0,
-        context->height,
+        pFrameYUV->height,
         pFrameBGR->data,
         pFrameBGR->linesize
     );
@@ -216,9 +229,11 @@ void doDecodeLibAvc(const librtmp::RTMPMediaMessage& m) {
     cv::Mat img(pFrameBGR->height, pFrameBGR->width, CV_8UC3, pFrameBGR->data[0], pFrameBGR->linesize[0]);
 
     cv::imshow("img", img);
-    cv::waitKey(1); // 1ms delay to allow OpenCV to draw
-    // while(1) {};
-    // av_free(frame_buffer);
+
+    // 1ms delay needed to allow OpenCV to draw.
+    // TODO move draw to an independent thread.
+    cv::waitKey(1);
+
 }
 
 void decodeMessage(const librtmp::RTMPMediaMessage& m) {
@@ -317,9 +332,13 @@ int main() {
         //connection terminated by peer or network conditions
         std::cout << "Connection Terminated\n";
         // decodeRTMP(rtmpFIFO);
+        avcodec_free_context(&context);
+        av_frame_unref (pFrameYUV);
         av_frame_free(&pFrameYUV);
 
+        av_frame_unref (pFrameBGR);
         av_frame_free(&pFrameBGR);
-        // sws_freeContext(sws_ctx);
+
+        sws_freeContext(sws_ctx);
     }
 }

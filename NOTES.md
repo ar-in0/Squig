@@ -227,3 +227,24 @@ https://learnopencv.com/why-does-opencv-use-bgr-color-format/
 
 av_pix_fmt_descriptors[AV_PIX_FMT_NB] 
 also see pixfmt.h
+
+htop:
+VIRT: Total mem requested by the proc (why is this some megabytes??)  - remember easyrtmp is statically linked.
+RES: total mem _in_use_ by the proc
+SHR: mem shareable.
+Use `man top`
+filter processes by F4
+  
+OK first E2E playback done after fixing memory leaks.
+
+tests:
+- squig +larix is lower latency that nginx-rtmp (almost zero lag vs 4-5s lag), but squig server video is kinda choppy, blurred while nginx+vlc 
+pipeline video is much clearer. Not sure what the reason could be...
+
+Memory Footprint:
+Squig+Larix:
+VIRT:2180M, RES: 171M, SHR: 125M, CPU:~20%
+
+Nginx-RTMP+VLC+Larix:
+VIRT: 5900M, RES: 181M, SHR: 114M, CPU: ~22%
+
