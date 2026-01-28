@@ -1,0 +1,8 @@
+BasedOnStyle: Google
+ColumnLimit: 80
+IndentWidth: 4
+
+# wrap arguments to their own lines if they wrap
+BinPackArguments: false
+BinPackParameters: false
+AllowAllArgumentsOnNextLine: false

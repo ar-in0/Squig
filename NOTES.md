@@ -248,3 +248,21 @@ VIRT:2180M, RES: 171M, SHR: 125M, CPU:~20%
 Nginx-RTMP+VLC+Larix:
 VIRT: 5900M, RES: 181M, SHR: 114M, CPU: ~22%
 
+@28 Jan
+- Online RL training classifier hard, unfeasible (aditya TBs of data). Corner inference difficult with monocular
+- Tracking, Occlusion detection, point classification seems doable with monocular.
+
+    - 2 camera setup may be necessary for better infernece.
+
+@29Jjan
+Need to seperate video display cv::imshow from stream decode.
+- two seperate threads: producer writes cv::Mat
+- consumer displays the ~latest frames:
+Buffering schemes: See Double Buffer
+    https://brilliantsugar.github.io/posts/how-i-learned-to-stop-worrying-and-love-juggling-c++-atomics/
+https://medium.com/%40sgn00/triple-buffer-lock-free-concurrency-primitive-611848627a1e
+
+Timing info:
+- A Frame must be displayed every 33.3ms for 30fps video
+- If a frame is passed to cv::imshow() before 33.3ms, it likely holds frame before painting, to ensure display at the correct stamp
+- p99 latency is a useful measure to decide if we need better architecture.
