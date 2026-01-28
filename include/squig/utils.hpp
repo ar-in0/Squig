@@ -4,6 +4,7 @@
 #include <iostream>
 #include <iomanip> // std::hex
 #include <cctype> //std::isprint
+#include <vector>
 namespace utils {
    void printHexDump(const std::vector<char>& buffer) {
     std::ios::fmtflags original_flags = std::cout.flags();

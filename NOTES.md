@@ -248,3 +248,8 @@ VIRT:2180M, RES: 171M, SHR: 125M, CPU:~20%
 Nginx-RTMP+VLC+Larix:
 VIRT: 5900M, RES: 181M, SHR: 114M, CPU: ~22%
 
+@28 Jan
+- Online RL training classifier hard, unfeasible (aditya TBs of data). Corner inference difficult with monocular
+- Tracking, Occlusion detection, point classification seems doable with monocular.
+
+    - 2 camera setup may be necessary for better infernece.

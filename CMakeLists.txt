@@ -14,6 +14,7 @@ add_executable(squig)
 target_sources(squig
   PRIVATE
   src/main.cpp
+  src/streamdecoder.cpp
 )
 
 # easyrtmp cmake has PUBLIC on its include
