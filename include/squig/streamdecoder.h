@@ -18,6 +18,7 @@ extern "C" {
 #include <libavutil/imgutils.h>
 }
 
+#include "squig/perfstatistics.hpp"
 #include "squig/rtmp_server.h"
 
 // A StreamDecoder is responsible
@@ -49,6 +50,7 @@ private:
     // are reused until session ends.
     AVFrame* m_pFrameYUV, *m_pFrameBGR;
 
+    PerfStatistics& m_stats;
     // AU = Access Unit (= Video Frame thanks to easyRTMP)
     void initDecoder();
     void registerAVCCExtraData();
@@ -57,9 +59,9 @@ private:
     void h264AUDecode(uint8_t* pAUData, size_t payloadSize, uint64_t dTime, uint32_t cTime);
     void naluAVCCToAnnexB(uint8_t* pNaluData, size_t payloadSize);
     void pixFmtYUVToBGR();
-
+    void updateImshowTime(uint64_t now);
 public:
-    StreamDecoder(librtmp::RTMPMediaMessage m, librtmp::ClientParameters sourceParams);
+    StreamDecoder(const librtmp::RTMPMediaMessage& m, librtmp::ClientParameters& sourceParams, PerfStatistics& stats);
     void process(librtmp::RTMPMediaMessage& m);
     ~StreamDecoder();
 };

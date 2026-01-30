@@ -7,4 +7,4 @@ sudo apt install -y build-essential cmake pkg-config libopencv-dev libavcodec-de
 git submodule update --init --recursive
 
 mkdir -p build
-cmake -DCMAKE_BUILD_TYPE=DEBUG -S . -B ./build
+cmake -DCMAKE_BUILD_TYPE=DEBUG -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON

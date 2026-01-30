@@ -1,54 +1,21 @@
-#include <cstdint>
+#include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <iostream>
 #include <limits>
 #include <memory>
 #include <numeric>
-#include <algorithm>
+
+#include "squig/perfstatistics.hpp"
 #include "squig/streamdecoder.h"
-
-class PerfStatistics {
-   private:
-    uint64_t m_iMaxTime;
-    uint64_t m_iMinTime;
-    std::vector<uint64_t> m_allTimes{};
-
-   public:
-    PerfStatistics() {
-        m_iMaxTime = 0;
-        m_iMinTime = std::numeric_limits<uint64_t>::max();  // v large
-    }
-    void update(uint64_t duration) {
-        if (duration < m_iMinTime) {
-            m_iMinTime = duration;
-        }
-        if (duration > m_iMaxTime) {
-            m_iMaxTime = duration;
-        }
-        m_allTimes.push_back(duration);
-    }
-    // not helpful for streaming
-    uint64_t mean() {
-        uint64_t sum = std::accumulate(m_allTimes.begin(), m_allTimes.end(), 0);
-        return sum / m_allTimes.size();
-    }
-        // p99 more relevant
-    uint64_t p99() {
-        std::sort(m_allTimes.begin(), m_allTimes.end());
-        size_t idx = static_cast<size_t>(0.99 * (m_allTimes.size() - 1));
-        return m_allTimes[idx];
-
-    }
-
-    uint64_t min() { return m_iMinTime; }
-    uint64_t max() { return m_iMaxTime; }
-};
+#include "squig/utils.hpp"
 
 namespace {
-    int fifoIdx{};
-    std::unique_ptr<StreamDecoder> sd;
-    PerfStatistics stats;
+int fifoIdx{};
+std::unique_ptr<StreamDecoder> sd;
 }  // namespace
+
+PerfStatistics stats(utils::nowMs());
 
 void handleVideo(librtmp::RTMPMediaMessage m,
                  librtmp::ClientParameters* sourceParams) {
@@ -79,19 +46,19 @@ void handleVideo(librtmp::RTMPMediaMessage m,
         (m.video.d.avc_packet_type == 0) ? "AVCC-Hdr" : "AVCC-Access-Unit";  //
 
     // Single line output with fixed spacing
-    printf("[RTMP %-3d] TS:%-8ld SID:%-3d | %-5s | %-8s | Size:%4zu\n",
-           fifoIdx,
-           m.timestamp,
-           m.message_stream_id,
-           fType,
-           pType,
-           m.video.video_data_send.size());
+    // printf("[RTMP %-3d] TS:%-8ld SID:%-3d | %-5s | %-8s | Size:%4zu\n",
+    //        fifoIdx,
+    //        m.timestamp,
+    //        m.message_stream_id,
+    //        fType,
+    //        pType,
+    //        m.video.video_data_send.size());
 
     // utils::printHexDump(m.video.video_data_send);
 
     bool isAVCCHdr = (m.video.d.avc_packet_type == 0);
     if (isAVCCHdr) {
-        sd = std::make_unique<StreamDecoder>(m, *sourceParams);
+        sd = std::make_unique<StreamDecoder>(m, *sourceParams, stats);
     }
     // RTMPMediaMessage -> AVPacket -> <avc_decode> -> AVFrame (uncompressed)
     // AVFrame.data -> cv::Mat() -> DISPLAY on screen!:
@@ -120,26 +87,25 @@ int main() {
         while (true) {
             // is an std::vector<char>
 
-                    // start timer
-                    auto start = std::chrono::high_resolution_clock::now();
+            // start timer
+            // auto start = std::chrono::high_resolution_clock::now();
             librtmp::RTMPMediaMessage message = server_session.GetRTMPMessage();
 
             // get received media codec parameters and streaming key
             auto params = server_session.GetClientParameters();
             switch (message.message_type) {
                 case librtmp::RTMPMessageType::VIDEO: {
-
                     handleVideo(message, params);
 
-                    auto end = std::chrono::high_resolution_clock::now();
-                    uint64_t durationUs =
-                        std::chrono::duration_cast<std::chrono::microseconds>(
-                            end - start)
-                            .count();
-                    stats.update(durationUs);
+                    // auto end = std::chrono::high_resolution_clock::now();
+                    // uint64_t durationUs =
+                    //     std::chrono::duration_cast<std::chrono::microseconds>(
+                    //         end - start)
+                    //         .count();
+                    // stats.update(durationUs);
                     fifoIdx++;
                     break;
-                } // braces needed if declaring vars inside a case
+                }  // braces needed if declaring vars inside a case
                 case librtmp::RTMPMessageType::AUDIO:
                     // std::cout << "[" << message.timestamp << "]" << "Audio
                     // Message\n";
@@ -151,6 +117,7 @@ int main() {
         std::cout << "Connection Terminated\n";
         std::cout << "Min Time: " << stats.min() << "\n";
         std::cout << "Max Time: " << stats.max() << "\n";
-        std::cout << "p99 Time: " << stats.p99() << "\n";
+        std::cout << "p99E2E Time: " << stats.p99E2E() << "\n";
+        std::cout << "p99Imshow Time: " << stats.p99Imshow() << "\n";
     }
 }

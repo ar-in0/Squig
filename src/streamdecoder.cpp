@@ -1,10 +1,13 @@
 #include "squig/streamdecoder.h"
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
+#include "squig/utils.hpp"
 
-StreamDecoder::StreamDecoder(librtmp::RTMPMediaMessage m,
-                             librtmp::ClientParameters sourceParams)
-    : m_avccHdr(m), m_sourceParams(sourceParams) {
+// 1. Is m_avccHdr doing a const to non-const conversion?
+StreamDecoder::StreamDecoder(const librtmp::RTMPMediaMessage& m,
+                             librtmp::ClientParameters& sourceParams,
+                             PerfStatistics& stats)
+    : m_avccHdr(m), m_sourceParams(sourceParams), m_stats(stats) {
     //  get AV_CODEC ID from params->video_codec
     // codec_id.h
     AVCodecID cID = AV_CODEC_ID_H264;
@@ -150,6 +153,8 @@ void StreamDecoder::pixFmtYUVToBGR() {
               m_pFrameBGR->linesize);
 }
 
+// pass by non-const reference need to modify contents
+// of m... in nalutoAnnexB
 // ref is valid until lifetime of object
 void StreamDecoder::process(librtmp::RTMPMediaMessage& m) {
     // RTMPMediaMessage -> AVPacket -> <avc_decode> -> AVFrame (uncompressed)
@@ -160,6 +165,9 @@ void StreamDecoder::process(librtmp::RTMPMediaMessage& m) {
     // https://github.com/leandromoreira/ffmpeg-libav-tutorial/blob/master/0_hello_world.c
 
     // convert video payload to AnnexB format for ffmpeg
+    // Casting ensure safety. std::vector<T>, .data() returns T*
+    // Here, we convert the returned char* to const char*, and then
+    // reinterpret.
     uint8_t* pNaluData = reinterpret_cast<uint8_t*>(
         const_cast<char*>(m.video.video_data_send.data()));
     size_t payloadSize = m.video.video_data_send.size();
@@ -200,11 +208,25 @@ void StreamDecoder::process(librtmp::RTMPMediaMessage& m) {
                 m_pFrameBGR->data[0],
                 m_pFrameBGR->linesize[0]);
 
-    cv::imshow("Video Playback", img);
+    // get curr time
+    // update currtime
+    updateImshowTime(utils::nowMs());
 
+            auto start = std::chrono::high_resolution_clock::now();
+cv::imshow("Video Playback", img);
+                    auto end = std::chrono::high_resolution_clock::now();
+                    uint64_t durationUs =
+                        std::chrono::duration_cast<std::chrono::microseconds>(
+                            end - start)
+                        .count();
+m_stats.update(durationUs);
     // 1ms delay needed to allow OpenCV to draw.
     // TODO move draw to an independent thread.
     cv::waitKey(1);
+}
+
+void StreamDecoder::updateImshowTime(uint64_t now) {
+    m_stats.updateImshowTime(now);
 }
 
 StreamDecoder::~StreamDecoder() {

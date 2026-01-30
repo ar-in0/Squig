@@ -6,7 +6,15 @@
 #include <iostream>
 #include <vector>
 namespace utils {
-void printHexDump(const std::vector<char>& buffer) {
+// modern c++ inline usage: bypass the ODR.
+inline uint64_t nowMs() {
+    using clock = std::chrono::steady_clock;
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+        clock::now().time_since_epoch()
+    ).count();
+}
+
+    inline void printHexDump(const std::vector<char>& buffer) {
     std::ios::fmtflags original_flags = std::cout.flags();
     char original_fill = std::cout.fill();
 
