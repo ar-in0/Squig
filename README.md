@@ -1,5 +1,7 @@
 # SQUIG
-Quick Start: 
+See [Issue#1](https://github.com/ar-in0/Squig/issues/1)  
+
+#### Quick Start: 
 ```bash
 git clone https://github.com/ar-in0/Squig
 cd Squig
