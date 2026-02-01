@@ -1,6 +1,7 @@
 html
 misc
 build
-testing
+__misc
 .cache
 compile_commands.json
+*-venv

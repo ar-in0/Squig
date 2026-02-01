@@ -1,6 +1,8 @@
 #include "squig/streamdecoder.h"
+
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
+
 #include "squig/utils.hpp"
 
 // 1. Is m_avccHdr doing a const to non-const conversion?
@@ -212,14 +214,7 @@ void StreamDecoder::process(librtmp::RTMPMediaMessage& m) {
     // update currtime
     updateImshowTime(utils::nowMs());
 
-            auto start = std::chrono::high_resolution_clock::now();
-cv::imshow("Video Playback", img);
-                    auto end = std::chrono::high_resolution_clock::now();
-                    uint64_t durationUs =
-                        std::chrono::duration_cast<std::chrono::microseconds>(
-                            end - start)
-                        .count();
-m_stats.update(durationUs);
+    cv::imshow("Video Playback", img);
     // 1ms delay needed to allow OpenCV to draw.
     // TODO move draw to an independent thread.
     cv::waitKey(1);

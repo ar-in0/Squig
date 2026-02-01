@@ -1,5 +1,5 @@
 # SQUIG
-See [Issue#1](https://github.com/ar-in0/Squig/issues/1)  
+See [Issues](https://github.com/ar-in0/Squig/issues)  
 
 #### Quick Start: 
 ```bash

@@ -59,6 +59,7 @@ void handleVideo(librtmp::RTMPMediaMessage m,
     bool isAVCCHdr = (m.video.d.avc_packet_type == 0);
     if (isAVCCHdr) {
         sd = std::make_unique<StreamDecoder>(m, *sourceParams, stats);
+        return;
     }
     // RTMPMediaMessage -> AVPacket -> <avc_decode> -> AVFrame (uncompressed)
     // AVFrame.data -> cv::Mat() -> DISPLAY on screen!:
@@ -88,7 +89,7 @@ int main() {
             // is an std::vector<char>
 
             // start timer
-            // auto start = std::chrono::high_resolution_clock::now();
+            auto start = std::chrono::high_resolution_clock::now();
             librtmp::RTMPMediaMessage message = server_session.GetRTMPMessage();
 
             // get received media codec parameters and streaming key
@@ -114,10 +115,13 @@ int main() {
         }
     } catch (...) {
         // connection terminated by peer or network conditions
+        // stats.writeToCSV("testing/squigV0_e2e_latencies.csv",
+        // kFfmpegLocalhost);
+
         std::cout << "Connection Terminated\n";
         std::cout << "Min Time: " << stats.min() << "\n";
         std::cout << "Max Time: " << stats.max() << "\n";
-        std::cout << "p99E2E Time: " << stats.p99E2E() << "\n";
-        std::cout << "p99Imshow Time: " << stats.p99Imshow() << "\n";
+        // std::cout << "p99E2E Time: " << stats.p99E2E() << "\n";
+        std::cout << "p99Imshow Period: " << stats.p99Imshow() << "\n";
     }
 }

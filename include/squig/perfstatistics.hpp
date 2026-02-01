@@ -2,29 +2,48 @@
 #define PERFSTATISTICS_H_
 #include <algorithm>
 #include <cstdint>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <numeric>
+#include <string>
+#include <string_view>
 #include <vector>
+// Squig server on Zephyrus G14 in all cases.
+enum TestType {
+    kFfmpegLocalhost,  // ffmpeg rtmp stream from zephyrus G14, ubuntu 24.04
+    kLarixIos,         // larix client on ios
+    kFfmpegRpi,        // ffmpeg v4l2 rtmp stream from rpi, ubuntu 24.04
+};
+
+// inline for ODR
+inline std::string getTestName(TestType test) {
+    switch (test) {
+        case kLarixIos:
+            return "kLarixIos";
+        case kFfmpegRpi:
+            return "kFfmpegRpi";
+        default:
+            return "UnknownTest";
+    }
+}
 
 class PerfStatistics {
    private:
-    uint64_t m_iMaxTime;
-    uint64_t m_iMinTime;
+    uint64_t m_iMaxTime{};
+    uint64_t m_iMinTime{};  // ignored, list initialized by constructor
     std::vector<uint64_t> m_allTimes{};
 
     uint64_t m_iTprev;
-    std::vector<uint64_t> m_imshowTimes{};  // used to store time interval b/w
-                                            // successive cv::imshow.
+    std::vector<uint64_t> m_imshowTimesE2E{};  // used to store time interval
+                                               // b/w successive cv::imshow.
    public:
-    PerfStatistics(uint64_t tStartMs) {
-        m_iMaxTime = 0;
-        m_iMinTime = std::numeric_limits<uint64_t>::max();  // v large
-        m_iTprev = tStartMs;
-    }
+    PerfStatistics(uint64_t tStartMs)
+        : m_iTprev{tStartMs},
+          m_iMinTime{std::numeric_limits<uint64_t>::max()} {}
 
     void updateImshowTime(uint64_t now) {
-        m_imshowTimes.push_back(now - m_iTprev);
+        m_imshowTimesE2E.push_back(now - m_iTprev);
         m_iTprev = now;
     }
     // Class method with definition is implicitly inline.
@@ -59,14 +78,42 @@ class PerfStatistics {
     uint64_t p99Imshow() {
         // +1 bec the first chrono timestamp is between server init
         // and client start...
-        std::sort(m_imshowTimes.begin() + 1, m_imshowTimes.end());
-        size_t idx = static_cast<size_t>(0.99 * (m_imshowTimes.size() - 1));
-        //     for (uint64_t x: m_imshowTimes) {
+        std::sort(m_imshowTimesE2E.begin() + 1, m_imshowTimesE2E.end());
+        size_t idx = static_cast<size_t>(0.99 * (m_imshowTimesE2E.size() - 1));
+        //     for (uint64_t x: m_imshowTimesE2E) {
         //         std::cout << x << " ";
         //     }
         //     std::cout << "\n";
-        return m_imshowTimes[idx];
+        return m_imshowTimesE2E[idx];
     }
+    void writeToCSV(std::string_view csvNameStr, TestType test) {
+        // open csv file
+        // case based on the test type
+        // write values in m_imshowTimes in correct row.
+        std::string fName(csvNameStr);
+        std::string testName = getTestName(test);
+
+        // check if empty
+        std::ifstream checkFile(fName);
+        bool isEmpty = checkFile.peek() == std::ifstream::traits_type::eof();
+        checkFile.close();
+        // open in append mode
+        std::ofstream outFile;
+        outFile.open(fName, std::ios::out | std::ios::app);
+
+        // write header if empty
+        if (isEmpty) {
+            outFile << "TestType, FrameIdx, TimeDelta\n";
+        }
+        // Format: TestName, FrameIndex, Value
+        for (size_t i = 0; i < m_imshowTimesE2E.size(); ++i) {
+            outFile << testName << "," << i << "," << m_imshowTimesE2E[i]
+                    << "\n";
+        }
+
+        outFile.close();
+    }
+
     uint64_t min() { return m_iMinTime; }
     uint64_t max() { return m_iMaxTime; }
 };

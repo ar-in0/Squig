@@ -266,3 +266,113 @@ Timing info:
 - A Frame must be displayed every 33.3ms for 30fps video
 - If a frame is passed to cv::imshow() before 33.3ms, it likely holds frame before painting, to ensure display at the correct stamp
 - p99 latency is a useful measure to decide if we need better architecture.
+
+
+@31Jan
+Setup RASPI zero 2W + Camera
+SDCard = Flash Memory for OS and filesystem
+https://learn.sparkfun.com/tutorials/getting-started-with-the-raspberry-pi-zero-2-w/all
+https://www.youtube.com/watch?v=va7o7wzhEE4
+    https://www.raspberrypi.com/documentation/computers/linux_kernel.html
+subnet jio hotspot: 172.20.10.xx/28
+Gateway: 172.20.10.1
+    pi cmdline.txt: 172.20.10.8
+ OS-Install:
+ 
+ a. Using RASPI Imager
+
+Attempts at testing raspi client:
+1.`ffmpeg -re -i test0_1080_30_squig_base.mp4 -c:v libx264 -c:a aac -f flv rtmp://172.20.10.2:1935/live/stream`
+- Will NOT work. Raspi ~500MB RAM, ffmpeg has ~1GB Working set.
+a. To stream mp4 from pi to machine, need to create a lightweight RTMP streaming client.
+
+
+2. Testing live stream with camera module
+
+using camera module 2, legacy software stack
+- libcamera-xxx
+
+https://www.raspberrypi.com/documentation/computers/camera_software.html#building-libcamera-and-rpicam-apps
+
+@1 Feb 
+- Trying to run libcamera apps on ubuntu server on raspi.
+- Compile source natively first using  C++ arm toolchain.
+- If rpi cam doesnt work, it means rpi OS has some specific features
+that ubuntu server does not.
+https://github.com/raspberrypi/libcamera?tab=readme-ov-file
+    * CANNOT BUILD ANYTHING NATIVELY ON RPI...:/
+    
+3 Oses:
+- Ubuntu server 24.04 for amd/x86 (default, desktop)
+- Ubuntu server 24.04 for arm (the one installed on RPI)
+- RaspberryPi OS (exclusively for rpi)
+
+MCU (1mb flash kbs of ram all on one chip ex. esp8266), 
+MPU (high cost, mostly x86 storage etc. on seperate chips), 
+SOC (MPU with peripherals on chip - mem etc. ) generally ARM
+
+Embedded Linux platform categories
+- low resource devices that can run linux
+SBC (single board computer): ex. rpi
+SOM
+
+Cross Compilation
+- dev+build on laptop for execution on embedded
+https://www.youtube.com/watch?v=Pbt330zuNPc&list=PLHWfIEVqU1tuZWvGClKK9WuMOHEjQ_cfq&index=15
+https://jaycarlson.net/embedded-linux/
+Application processosrs (ARM-A: Have MMUs)
+ s
+
+GOAL: Stream video from the raspi camera module to remote squig server
+On ubuntu 24.04 server installed on rpi:
+- sudo apt install v4l-utils
+- v4l2-ctl -d0 --stream-mmap --stream-count=1 --stream-to=file.raw
+  - scp the raw to gimp, camera works verified.
+
+The `/dev/video0` is a device interface to the camera moduleV2. 
+  
+https://forums.raspberrypi.com/viewtopic.php?t=370096
+- Pipe rpi-cam to ffmpeg rtmp stream
+Strategy: For any problem, before re-inventing any existing functionality, you must be able to demostrate 
+that standard solutions are inadequate. In other words:  
+
+`ffmpeg -f v4l2 -i /dev/video0 -c:v libx264 -preset ultrafast -f flv rtmp://172.20.10.2:1935/live/stream`   
+
+Network stuff
+- laptop+rpi connected to ios hotspot: subnet 172.20.10.xx/28
+- rpi connected to laptop hotspot: subnet 10.42.0.1
+- add a new .network to the systemd/network to assign static ip in laptop subnet
+- add laptop hotspot details in 50-cloud-init.yaml for connect-on-boot
+@2 Feb
+Q. How to configure networking when cross-compiling linux kernel?
+
+
+RPi Issues:
+When running with ffmpeg v4lc2: 
+- Single exposure setting based on camera initial light conditions - overexposed video if start in dark, underexposed otherwise.
+- 2ish second delay
+- 8ish fps
+- No image stabilization - even slight movement in camera causes large shifts/video warp. - unsuitable for a squash court.
+- black streaks in video - guessing due to underflow (but why exactly?)
+-LAG 2s between rpi and squig, no lag between larix and squig.
+- rpi 6fps, squig 30fps (why?)
+
+p99imshow 10mins larix ~30fps, ~195ms
+p99imshow 10mins rpi ~6fps, ~195ms
+p99imshow 10mins usb webcam on zephyrus ~17fps, 64ms
+(try with -framerate next)
+
+`v4l2-ctl --device=/dev/video0 --list-formats-ext`
+
+ffmpeg -f v4l2 -i /dev/video0 -c:v libx264 -preset ultrafast -r 30 -f flv rtmp://10.42.0.1:1935/live/stream
+
+- Frame duplication on client to send a 30fps stream - the lag between 
+world action and display is reduced (2s to almost as good as larix)
+- also imshow time drops from 195ms to 140ms
+- on the pi, cpu usage goes up with -r (expected, cpu is duplicating frames).
+
+SO we have discovered: 
+1. ffmpeg fps number: how many real camera frames encoded and sent in the last second. (is this equal to frames receid from camera per second?)
+2. Not sure why the fps count is affecting the lag...
+- the point at which framerate -r maximizes and imshow time stabilizes is the actual 
+network cost of the pipeline.
