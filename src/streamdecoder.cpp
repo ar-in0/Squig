@@ -3,6 +3,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 
+#include "rtmp_endpoint.h"
 #include "squig/utils.hpp"
 
 // 1. Is m_avccHdr doing a const to non-const conversion?
@@ -155,71 +156,96 @@ void StreamDecoder::pixFmtYUVToBGR() {
               m_pFrameBGR->linesize);
 }
 
-// pass by non-const reference need to modify contents
-// of m... in nalutoAnnexB
-// ref is valid until lifetime of object
-void StreamDecoder::process(librtmp::RTMPMediaMessage& m) {
-    // RTMPMediaMessage -> AVPacket -> <avc_decode> -> AVFrame (uncompressed)
-    // AVFrame.data -> cv::Mat() -> DISPLAY on screen!:
-    // AVFrame: Uncompressed Video Frame
-    // This func should output an AVFrame
-    // for each RTMP Message.
-    // https://github.com/leandromoreira/ffmpeg-libav-tutorial/blob/master/0_hello_world.c
+void StreamDecoder::process() {
+    for (;;) {
+        // read from rtmpFIFO
+        auto m = m_rtmpFIFO.pop();
 
-    // convert video payload to AnnexB format for ffmpeg
-    // Casting ensure safety. std::vector<T>, .data() returns T*
-    // Here, we convert the returned char* to const char*, and then
-    // reinterpret.
-    uint8_t* pNaluData = reinterpret_cast<uint8_t*>(
-        const_cast<char*>(m.video.video_data_send.data()));
-    size_t payloadSize = m.video.video_data_send.size();
-    naluAVCCToAnnexB(pNaluData, payloadSize);
+        // check sentinel value
+        if (m.message_type == librtmp::RTMPMessageType::ABORT) {
+            // write sentinel to imgFIFO
+            m_imFIFO.push(Squig::ImageFrame{.abort = true});
+            return;
+        }
+        // RTMPMediaMessage -> AVPacket -> <avc_decode> -> AVFrame
+        // (uncompressed) AVFrame.data -> cv::Mat() -> DISPLAY on screen!:
+        // AVFrame: Uncompressed Video Frame
+        // This func should output an AVFrame
+        // for each RTMP Message.
+        // https://github.com/leandromoreira/ffmpeg-libav-tutorial/blob/master/0_hello_world.c
 
-    uint32_t cTime = m.video.d.composition_time;
-    uint64_t dTime = m.timestamp;
-    h264AUDecode(pNaluData, payloadSize, dTime, cTime);
+        // convert video payload to AnnexB format for ffmpeg
+        // Casting ensure safety. std::vector<T>, .data() returns T*
+        // Here, we convert the returned char* to const char*, and then
+        // reinterpret.
+        uint8_t* pNaluData = reinterpret_cast<uint8_t*>(
+            const_cast<char*>(m.video.video_data_send.data()));
+        size_t payloadSize = m.video.video_data_send.size();
+        naluAVCCToAnnexB(pNaluData, payloadSize);
 
-    // release any data previouslywritten to the
-    // undo any previous get_buffer().
-    // av_frame_unref(pFrameBGR);
+        uint32_t cTime = m.video.d.composition_time;
+        uint64_t dTime = m.timestamp;
+        h264AUDecode(pNaluData, payloadSize, dTime, cTime);
 
-    // To avoid alloc/free buffer on each rtmp packet decode,
-    // reuse the original buffer, i.e. let
-    // sws_scale overwrite a previously filled buffer.
-    // Possible future issue: If resolution of
-    // incoming stream changes in a session,
-    // there could be trouble. (cv::mat reads part-old data)
-    // --
-    // In such a case, can add a check here to verify no change
-    // in codec context, but rn the main loop logic itself only
-    // allows a single resolution per session.
-    // (fifoIdx=0 is used to get the SPS, and initAvc()).
+        // release any data previouslywritten to the
+        // undo any previous get_buffer().
+        // av_frame_unref(pFrameBGR);
 
-    // write to pFrameBGR data buffer
-    // OpenCV methods only work with BGR frames,
-    // but video is transmitted as YUV.
-    pixFmtYUVToBGR();
+        // To avoid alloc/free buffer on each rtmp packet decode,
+        // reuse the original buffer, i.e. let
+        // sws_scale overwrite a previously filled buffer.
+        // Possible future issue: If resolution of
+        // incoming stream changes in a session,
+        // there could be trouble. (cv::mat reads part-old data)
+        // --
+        // In such a case, can add a check here to verify no change
+        // in codec context, but rn the main loop logic itself only
+        // allows a single resolution per session.
+        // (fifoIdx=0 is used to get the SPS, and initAvc()).
 
-    // TODO Add YUV Frame to a shared AVFrame Buffer
-    // for playback/analysis.
-    //
-    // Current: Display frame immediately
-    cv::Mat img(m_pFrameBGR->height,
-                m_pFrameBGR->width,
-                CV_8UC3,
-                m_pFrameBGR->data[0],
-                m_pFrameBGR->linesize[0]);
+        // write to pFrameBGR data buffer
+        // OpenCV methods only work with BGR frames,
+        // but video is transmitted as YUV.
+        pixFmtYUVToBGR();
 
-    // get curr time
-    // update currtime
-    updateImshowTime(utils::nowMs());
-
-    cv::imshow("Video Playback", img);
-    // 1ms delay needed to allow OpenCV to draw.
-    // TODO move draw to an independent thread.
-    cv::waitKey(1);
+        // TODO Add YUV Frame to a shared AVFrame Buffer
+        // for playback/analysis.
+        //
+        // Current: Display frame immediately
+        cv::Mat img(m_pFrameBGR->height,
+                    m_pFrameBGR->width,
+                    CV_8UC3,
+                    m_pFrameBGR->data[0],
+                    m_pFrameBGR->linesize[0]);
+        // need to check copy semantics.
+        Squig::ImageFrame im{};
+        im.img = img;
+        // push to imFIFO.
+        m_imFIFO.push(im);
+    }
 }
 
+void StreamDecoder::renderPlayback() {
+    for (;;) {
+        auto im = m_imFIFO.pop();
+
+        // sentinel value.
+        if (im.abort) {
+            return;
+        }
+
+        auto img = im.img;
+
+        // get curr time
+        // update currtime
+        updateImshowTime(utils::nowMs());
+
+        cv::imshow("Video Playback", img);
+        // 1ms delay needed to allow OpenCV to draw.
+        // TODO move draw to an independent thread.
+        cv::waitKey(1);
+    }
+}
 void StreamDecoder::updateImshowTime(uint64_t now) {
     m_stats.updateImshowTime(now);
 }

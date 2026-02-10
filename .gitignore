@@ -5,3 +5,4 @@ __misc
 .cache
 compile_commands.json
 *-venv
+*_checkpoints

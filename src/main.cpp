@@ -6,6 +6,7 @@
 #include <memory>
 #include <numeric>
 
+#include "rtmp_endpoint.h"
 #include "squig/perfstatistics.hpp"
 #include "squig/streamdecoder.h"
 #include "squig/utils.hpp"
@@ -61,21 +62,27 @@ void handleVideo(librtmp::RTMPMediaMessage m,
         sd = std::make_unique<StreamDecoder>(m, *sourceParams, stats);
         return;
     }
-    // RTMPMediaMessage -> AVPacket -> <avc_decode> -> AVFrame (uncompressed)
-    // AVFrame.data -> cv::Mat() -> DISPLAY on screen!:
+
+    // add to sd queue
+    sd.rtmpFifo.push(m);
+}
+
+// decoder thread. Write to
+// imgFifo
+void decodeRTMP() {
+    // RTMPMediaMessage -> AVPacket -> <avc_decode> -> AVFrame
+    // (uncompressed) AVFrame.data -> cv::Mat() -> DISPLAY on screen!:
     // AVFrame: Uncompressed Video Frame
     // This func should output an AVFrame
     // for each RTMP Message.
     // https://github.com/leandromoreira/ffmpeg-libav-tutorial/blob/master/0_hello_world.c
+    // This should be in the decoder thread
     if (sd) {
-        sd->process(m);
+        sd->process();
     }
 }
 
-int main() {
-    std::cout << "Sup bros" << std::endl;
-
-    // start server
+void networkRecv() {
     TCPServer tcp_server(1935);
     // client = accept socket
     auto client = tcp_server.accept();
@@ -83,12 +90,8 @@ int main() {
 
     librtmp::RTMPEndpoint rtmp_endpoint(client.get());
     librtmp::RTMPServerSession server_session(&rtmp_endpoint);
-
     try {
-        while (true) {
-            // is an std::vector<char>
-
-            // start timer
+        for (;;) {
             auto start = std::chrono::high_resolution_clock::now();
             librtmp::RTMPMediaMessage message = server_session.GetRTMPMessage();
 
@@ -96,8 +99,8 @@ int main() {
             auto params = server_session.GetClientParameters();
             switch (message.message_type) {
                 case librtmp::RTMPMessageType::VIDEO: {
+                    // write to rtmpFifo.
                     handleVideo(message, params);
-
                     // auto end = std::chrono::high_resolution_clock::now();
                     // uint64_t durationUs =
                     //     std::chrono::duration_cast<std::chrono::microseconds>(
@@ -114,14 +117,32 @@ int main() {
             }
         }
     } catch (...) {
-        // connection terminated by peer or network conditions
-        // stats.writeToCSV("testing/squigV0_e2e_latencies.csv",
-        // kFfmpegLocalhost);
-
         std::cout << "Connection Terminated\n";
         std::cout << "Min Time: " << stats.min() << "\n";
         std::cout << "Max Time: " << stats.max() << "\n";
         // std::cout << "p99E2E Time: " << stats.p99E2E() << "\n";
         std::cout << "p99Imshow Period: " << stats.p99Imshow() << "\n";
+
+        // write sentinel to rtmpFIFO
+        librtmp::RTMPMediaMessage sentinel{};
+        sentinel.message_type = librtmp::RTMPMessageType::ABORT;
+        sd->rtmpFIFO.push(sentinel);
+        return;
     }
+}
+
+int main() {
+    std::cout << "Sup Bros\n";
+    // Thread A: network thread, recv() and write to RTMPFifo
+    // Thread B: Decode thread, read rtmpFifo and write imgFifo
+    // Main thread: Reads from imgFifo and does imshow()
+    // every thread has access to the streamdecoder unique_ptr.
+
+    std::thread nw(networkRecv);
+    std::thread dc(decodeRTMP);
+
+    sd->renderPlayback();
+
+    nw.join();
+    dc.join();
 }

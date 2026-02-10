@@ -340,7 +340,7 @@ that standard solutions are inadequate. In other words:
 
 Network stuff
 - laptop+rpi connected to ios hotspot: subnet 172.20.10.xx/28
-- rpi connected to laptop hotspot: subnet 10.42.0.1
+- [ ] rpi connected to laptop hotspot: subnet 10.42.0.1
 - add a new .network to the systemd/network to assign static ip in laptop subnet
 - add laptop hotspot details in 50-cloud-init.yaml for connect-on-boot
 @2 Feb

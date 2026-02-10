@@ -1,8 +1,9 @@
 #ifndef STREAMDECODER_H
 #define STREAMDECODER_H
 
-#include <iostream>
 #include <stdint.h>
+
+#include <iostream>
 
 // extern C is needed
 // tells the compiler to
@@ -13,22 +14,34 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
-#include <libavutil/log.h>
-#include <libswscale/swscale.h>
 #include <libavutil/imgutils.h>
+#include <libavutil/log.h>
+
+#include <libswscale/swscale.ih>
 }
 
+#include "squig/framebuffer.h"
 #include "squig/perfstatistics.hpp"
 #include "squig/rtmp_server.h"
-
 // A StreamDecoder is responsible
 // for transforming encoded YUV NALUs from RTMP messages
 // to decoded BGR Video Frames, usable by openCV.
 // The StreamDecoder makes a buffer of AVFrames
-// from a single client available for playback or analysis.
+// from a single client available for playback or analysis.i
+// ---
+// one per client, shared by network thread and decoder thread
+
+namespace Squig {
+struct ImageFrame {
+    cv::Mat img;
+    bool abort{false};
+}
+
+}  // namespace Squig
+
 class StreamDecoder {
-private:
-    int m_fifoIdx {};
+   private:
+    int m_fifoIdx{};
     // RTMP message containing AVCDecoderConfigurationRecord
     // i.e. AVCC header i.e. first RTMP message.
     const librtmp::RTMPMediaMessage m_avccHdr;
@@ -48,7 +61,14 @@ private:
     // BGR: Required by openCV render methods
     // Frames are allocated once, and buffers
     // are reused until session ends.
-    AVFrame* m_pFrameYUV, *m_pFrameBGR;
+    AVFrame *m_pFrameYUV, *m_pFrameBGR;
+
+    // network thread writer, decoder thread reader
+    // default size kRingBufferSize
+    FrameBuffer<librtmp::RTMPMediaMessage> m_rtmpFIFO;
+
+    // decoder thread writer, render thread reader
+    FrameBuffer<Squig::ImageFrame> m_imFIFO;
 
     PerfStatistics& m_stats;
     // AU = Access Unit (= Video Frame thanks to easyRTMP)
@@ -56,13 +76,21 @@ private:
     void registerAVCCExtraData();
     void registerDecoderCtx();
     void registerPixelFmtConversionCtx();
-    void h264AUDecode(uint8_t* pAUData, size_t payloadSize, uint64_t dTime, uint32_t cTime);
+    void h264AUDecode(uint8_t* pAUData,
+                      size_t payloadSize,
+                      uint64_t dTime,
+                      uint32_t cTime);
     void naluAVCCToAnnexB(uint8_t* pNaluData, size_t payloadSize);
     void pixFmtYUVToBGR();
     void updateImshowTime(uint64_t now);
-public:
-    StreamDecoder(const librtmp::RTMPMediaMessage& m, librtmp::ClientParameters& sourceParams, PerfStatistics& stats);
+
+   public:
+    StreamDecoder(const librtmp::RTMPMediaMessage& m,
+                  librtmp::ClientParameters& sourceParams,
+                  PerfStatistics& stats);
     void process(librtmp::RTMPMediaMessage& m);
+    void process();  // for multithreaded
+    void renderPlayback();
     ~StreamDecoder();
 };
 #endif
