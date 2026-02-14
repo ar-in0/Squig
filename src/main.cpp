@@ -1,30 +1,32 @@
-#include <algorithm>
-#include <chrono>
-#include <cstdint>
+#include <condition_variable>
 #include <iostream>
-#include <limits>
 #include <memory>
-#include <numeric>
+#include <mutex>
+#include <thread>
 
 #include "rtmp_endpoint.h"
 #include "squig/perfstatistics.hpp"
 #include "squig/streamdecoder.h"
 #include "squig/utils.hpp"
 
+// anonymous namespace: gives everything inside internal linkage (file-local).
+// Same effect as 'static' on each declaration, but works for types too.
+// Without this, sdMutex/sdReady/sd would be visible to other translation
+// units and could cause ODR (One Definition Rule) violations.
 namespace {
-int fifoIdx{};
+std::mutex sdMutex;
+std::condition_variable sdReady;
 std::unique_ptr<StreamDecoder> sd;
+PerfStatistics stats(utils::nowMs());
 }  // namespace
 
-PerfStatistics stats(utils::nowMs());
-
-void handleVideo(librtmp::RTMPMediaMessage m,
-                 librtmp::ClientParameters* sourceParams) {
-    // do the Decode -> Display
+// network thread
+void nwHandleVideo(librtmp::RTMPMediaMessage m,
+                   librtmp::ClientParameters* sourceParams) {
     // The first rtmp message (header, avc_packet_type=0) initializes the client
     // params i.e. video height frame rate etc. It is an AMF message. Confirmed
     // from printf in easyrtmp handleAMF()
-
+    //
     // From assts/extracting-NALU.png:
     // NALUs of the same frame have the same timestamp
     // ---
@@ -36,113 +38,81 @@ void handleVideo(librtmp::RTMPMediaMessage m,
     // EasyRTMP populates m.d with supplementary RTMP info as in spec.
     // EasyRTMP ensures each MediaMessage contains a single Access Unit (Frame)
     // which is made up of several NALUs.
-    //
-    // VCL NALU: A slice of a video frame, contains pure image data.
-    // VCL type 5: NALU is a single encoded image (video frame).
-    // VCL type 1: Non-VCL NALU:
-    const char* fType = (m.video.d.frame_type == 1)
-                            ? "Keyframe"
-                            : "Interframe";  // 2 = interframe
-    const char* pType =
-        (m.video.d.avc_packet_type == 0) ? "AVCC-Hdr" : "AVCC-Access-Unit";  //
-
-    // Single line output with fixed spacing
-    // printf("[RTMP %-3d] TS:%-8ld SID:%-3d | %-5s | %-8s | Size:%4zu\n",
-    //        fifoIdx,
-    //        m.timestamp,
-    //        m.message_stream_id,
-    //        fType,
-    //        pType,
-    //        m.video.video_data_send.size());
-
-    // utils::printHexDump(m.video.video_data_send);
 
     bool isAVCCHdr = (m.video.d.avc_packet_type == 0);
     if (isAVCCHdr) {
-        sd = std::make_unique<StreamDecoder>(m, *sourceParams, stats);
+        {
+            std::lock_guard lock(sdMutex);
+            // make_unique: heap-allocates and constructs in one call. No raw 'new'.
+            // Exception-safe: if the constructor throws, no memory leaks.
+            // Returns unique_ptr -- sd owns the StreamDecoder, auto-deletes on scope exit.
+            sd = std::make_unique<StreamDecoder>(m, *sourceParams, stats);
+        }
+        // notify_all: both decoder and main thread wait on this
+        sdReady.notify_all();
         return;
     }
 
-    // add to sd queue
-    sd.rtmpFifo.push(m);
+    sd->pushRTMP(std::move(m));
 }
 
-// decoder thread. Write to
-// imgFifo
+// decoder thread
 void decodeRTMP() {
-    // RTMPMediaMessage -> AVPacket -> <avc_decode> -> AVFrame
-    // (uncompressed) AVFrame.data -> cv::Mat() -> DISPLAY on screen!:
-    // AVFrame: Uncompressed Video Frame
-    // This func should output an AVFrame
-    // for each RTMP Message.
-    // https://github.com/leandromoreira/ffmpeg-libav-tutorial/blob/master/0_hello_world.c
-    // This should be in the decoder thread
-    if (sd) {
-        sd->process();
+    {
+        // Lambda predicate: [] captures nothing (sd is in the anonymous namespace,
+        // accessible without capture). The CV re-checks this after every spurious
+        // wake or notify -- the predicate guards against both.
+        std::unique_lock lock(sdMutex);
+        sdReady.wait(lock, [] { return sd != nullptr; });
     }
+    sd->process();
 }
 
 void networkRecv() {
     TCPServer tcp_server(1935);
-    // client = accept socket
     auto client = tcp_server.accept();
-    std::cout << "conn accepted" << std::endl;
+    std::cout << "conn accepted\n";
 
     librtmp::RTMPEndpoint rtmp_endpoint(client.get());
     librtmp::RTMPServerSession server_session(&rtmp_endpoint);
     try {
         for (;;) {
-            auto start = std::chrono::high_resolution_clock::now();
-            librtmp::RTMPMediaMessage message = server_session.GetRTMPMessage();
-
-            // get received media codec parameters and streaming key
+            librtmp::RTMPMediaMessage message =
+                server_session.GetRTMPMessage();
             auto params = server_session.GetClientParameters();
             switch (message.message_type) {
-                case librtmp::RTMPMessageType::VIDEO: {
-                    // write to rtmpFifo.
-                    handleVideo(message, params);
-                    // auto end = std::chrono::high_resolution_clock::now();
-                    // uint64_t durationUs =
-                    //     std::chrono::duration_cast<std::chrono::microseconds>(
-                    //         end - start)
-                    //         .count();
-                    // stats.update(durationUs);
-                    fifoIdx++;
+                case librtmp::RTMPMessageType::VIDEO:
+                    nwHandleVideo(std::move(message), params);
                     break;
-                }  // braces needed if declaring vars inside a case
                 case librtmp::RTMPMessageType::AUDIO:
-                    // std::cout << "[" << message.timestamp << "]" << "Audio
-                    // Message\n";
                     break;
             }
         }
     } catch (...) {
         std::cout << "Connection Terminated\n";
-        std::cout << "Min Time: " << stats.min() << "\n";
-        std::cout << "Max Time: " << stats.max() << "\n";
-        // std::cout << "p99E2E Time: " << stats.p99E2E() << "\n";
-        std::cout << "p99Imshow Period: " << stats.p99Imshow() << "\n";
-
-        // write sentinel to rtmpFIFO
-        librtmp::RTMPMediaMessage sentinel{};
-        sentinel.message_type = librtmp::RTMPMessageType::ABORT;
-        sd->rtmpFIFO.push(sentinel);
-        return;
+        sd->pushSentinel();
     }
 }
 
 int main() {
-    std::cout << "Sup Bros\n";
     // Thread A: network thread, recv() and write to RTMPFifo
     // Thread B: Decode thread, read rtmpFifo and write imgFifo
     // Main thread: Reads from imgFifo and does imshow()
-    // every thread has access to the streamdecoder unique_ptr.
+    // jthread constructor spawns the thread immediately.
+    // Unlike std::thread, jthread auto-joins in its destructor --
+    // if renderPlayback() throws, stack unwinding joins both threads cleanly.
+    std::jthread nw(networkRecv);
+    std::jthread dc(decodeRTMP);
 
-    std::thread nw(networkRecv);
-    std::thread dc(decodeRTMP);
+    // main thread must also wait for sd init before calling renderPlayback
+    {
+        std::unique_lock lock(sdMutex);
+        sdReady.wait(lock, [] { return sd != nullptr; });
+    }
 
     sd->renderPlayback();
 
-    nw.join();
-    dc.join();
+    // stats access is safe here: render loop exited means
+    // sentinel was received, so no concurrent writers
+    std::cout << "p99Imshow Period: " << stats.p99Imshow() << "\n";
 }

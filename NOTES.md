@@ -376,3 +376,38 @@ SO we have discovered:
 2. Not sure why the fps count is affecting the lag...
 - the point at which framerate -r maximizes and imshow time stabilizes is the actual 
 network cost of the pipeline.
+
+@10 Feb
+OpenCV cv::Mat
+> The class Mat represents an n-dimensional dense numerical single-channel or multi-channel array. It can be used to store real or complex-valued vectors and matrices, grayscale or color images, voxel volumes, vector fields, point clouds, tensors, histograms (though, very high-dimensional histograms may be better stored in a SparseMat ).
+cv::Mat reps an array
+- array is n-dimensional (n-vector)
+- dense (zero-valued elements are included)
+- single/multichannel (grayscale: Single value reps a "pixel" i.e. image unit, single channel. RGB: 3 values rep a pixel, multichannel)
+- i.e. elems in the array may be scalar, pair, 3-tuple...k-tuple representing k channels.
+- cv::Mat data elements are stored in a single buffer, but semantics are extracted via the following:
+
+
+IMP:
+> Copy constructor/assignment of a cv::Mat copies the header and updates the reference count, no data copy occues, so its O(1)
+
+> Once the array is created, it is automatically managed via a reference-counting mechanism. If the array header is built on top of user-allocated data, you should handle the data by yourself. The array data is deallocated when no one points to it. If you want to release the data pointed by a array header before the array destructor is called, use Mat::release().
+
+
+AVFrame problem:
+m_pFrameYUV, m_pFRameBGR are ffmpeg AVFrames that point to encoded and decoded image data (respectively) on heap. `cv::Mat` assigns a header to 
+m_pFrameBGR->data which allows opencv methods like `imshow` to render the pixels. 
+- In the single thread, non-buffered server, it was guaranteed that there would only be a single AVFrame in the pipeline at any instance (recv()->decode()->render() happened sequentially on a per-frame basis). A single AVFrame struct was safe to be overwritten in the next iteration because its data had been consumed (by render()) before the decode of the next incoming frame.
+- In a buffered implementation, there should be several decoded AVFrames in the pipeline simultaneously in the render thread. If we use a single AVFrame, the img contents in the imFIFO will be corrupted by upstream decode of later frames.
+
+**It is necessary to have support for multiple simultaneous decoded AVFrames.**
+- Perhaps a ring-buffer of AVFrames rather than cv::mat(). render thread adds cv::Mat header immediately before imshow, rather than in the decode thread?
+--> fixed-size array with const pointers to AVFrame*. If N is size of ring buffers, N+1 should be size of AVBuffer, followed by round-robin on both sides.
+--> Invariant: In the worst (for server stability) case, Time between imFIFO pop() and complettion of the cv::Mat processing must be < Time to decode 2 RTMP Messages to BGR AVFrames 
+
+
+@13 Feb:
+Classical CV for intelligence:
+Court boundary detection: Hough line transform
+Ball tracking: Background subtraction + Kalman filter 
+Game event classification: Rule-based state machine

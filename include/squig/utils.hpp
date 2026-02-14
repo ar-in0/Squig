@@ -6,7 +6,11 @@
 #include <iostream>
 #include <vector>
 namespace utils {
-// modern c++ inline usage: bypass the ODR.
+// inline: this function is defined in a header, so every .cpp that #includes
+// it gets a copy. Without inline, the linker sees multiple definitions -> error
+// (ODR violation). inline tells the linker "these are all the same, pick one."
+// Note: class member functions defined in-class are implicitly inline
+// (see PerfStatistics methods in perfstatistics.hpp).
 inline uint64_t nowMs() {
     using clock = std::chrono::steady_clock;
     return std::chrono::duration_cast<std::chrono::microseconds>(
